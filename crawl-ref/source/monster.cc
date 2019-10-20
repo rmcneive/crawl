@@ -639,11 +639,6 @@ bool monster::could_wield(const item_def &item, bool ignore_brand,
         if ((is_holy() || is_good_god(god)) && is_evil_item(item))
             return false;
 
-        // Monsters that are gifts/worshippers of Fedhas won't use
-        // corpse-violating weapons.
-        if (god == GOD_FEDHAS && is_corpse_violating_item(item))
-            return false;
-
         // Monsters that are gifts/worshippers of Zin won't use unclean
         // weapons.
         if (god == GOD_ZIN && is_unclean_item(item))
@@ -2930,11 +2925,6 @@ bool monster::has_unclean_spell() const
 bool monster::has_chaotic_spell() const
 {
     return search_spells(is_chaotic_spell);
-}
-
-bool monster::has_corpse_violating_spell() const
-{
-    return search_spells(is_corpse_violating_spell);
 }
 
 bool monster::has_attack_flavour(int flavour) const
@@ -6072,7 +6062,8 @@ void monster::react_to_damage(const actor *oppressor, int damage,
     {
         if (hit_points + damage > max_hit_points / 2)
             damage = max_hit_points / 2 - hit_points;
-        if (damage > 0 && x_chance_in_y(damage, damage + hit_points))
+        if (damage > 0 && x_chance_in_y(damage, damage + hit_points)
+            && flavour != BEAM_TORMENT_DAMAGE)
         {
             bool fly_died = coinflip();
             int old_hp                = hit_points;

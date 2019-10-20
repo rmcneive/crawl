@@ -309,6 +309,8 @@ public:
     // Maps without allow_dup that have been already used.
     set<string> uniq_map_tags;
     set<string> uniq_map_names;
+    set<string> uniq_map_tags_abyss;
+    set<string> uniq_map_names_abyss;
     // All maps, by level.
     map<level_id, vector<string> > vault_list;
 
@@ -359,7 +361,9 @@ public:
 
     // Hash seed for deterministic stuff.
     uint64_t game_seed;
-    bool game_is_seeded;
+    bool fully_seeded; // true on all games started since 0.23 seeding changes
+    bool deterministic_levelgen; // true if a game was started with incremental
+                                 // or full pregen.
 
     // -------------------
     // Non-saved UI state:

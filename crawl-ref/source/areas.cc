@@ -145,6 +145,9 @@ static void _actor_areas(actor *a)
  */
 static void _update_agrid()
 {
+    // sanitize rng in case this gets indirectly called by the builder.
+    rng::generator gameplay(rng::GAMEPLAY);
+
     if (no_areas)
     {
         _agrid_valid = true;
@@ -193,13 +196,6 @@ static void _update_agrid()
             if (cell_see_cell(you.pos(), *ri, LOS_DEFAULT))
                 _set_agrid_flag(*ri, areaprop::disjunction);
         }
-        no_areas = false;
-    }
-
-    if (!env.sunlight.empty())
-    {
-        for (const auto &entry : env.sunlight)
-            _set_agrid_flag(entry.first, areaprop::halo);
         no_areas = false;
     }
 

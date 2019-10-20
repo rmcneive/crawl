@@ -578,6 +578,10 @@ static bool _valid_monster_generation_location(const mgen_data &mg,
         || monster_at(mg_pos)
         || you.pos() == mg_pos && !fedhas_passthrough_class(mg.cls))
     {
+        ASSERT(!crawl_state.generating_level
+                || !in_bounds(mg_pos)
+                || you.pos() != mg_pos
+                || you.where_are_you == BRANCH_ABYSS);
         return false;
     }
 
@@ -594,6 +598,7 @@ static bool _valid_monster_generation_location(const mgen_data &mg,
     if (mg.proximity == PROX_AWAY_FROM_PLAYER && close_to_player
         || mg.proximity == PROX_CLOSE_TO_PLAYER && !close_to_player)
     {
+        ASSERT(!crawl_state.generating_level || you.where_are_you == BRANCH_ABYSS);
         return false;
     }
     // Check that the location is not proximal to level stairs.
@@ -828,6 +833,8 @@ monster* place_monster(mgen_data mg, bool force_pos, bool dont_place)
                 member->props["kirke_band"] = true;
         }
     }
+    dprf(DIAG_DNGN, "Placing %s at %d,%d", mon->name(DESC_PLAIN, true).c_str(),
+                mon->pos().x, mon->pos().y);
 
     // Placement of first monster, at least, was a success.
     return mon;
@@ -1510,7 +1517,7 @@ static monster* _place_pghost_aux(const mgen_data &mg, const monster *leader,
     // since depending on the ghost, the aux call can trigger variation in
     // things like whether an enchantment (with a random duration) is
     // triggered.
-    rng_generator rng(RNG_SYSTEM_SPECIFIC);
+    rng::generator rng(rng::SYSTEM_SPECIFIC);
     return _place_monster_aux(mg, leader, place, force_pos, dont_place);
 }
 
@@ -2826,13 +2833,6 @@ conduct_type player_will_anger_monster(const monster &mon)
     if (is_good_god(you.religion) && mon.evil())
         return DID_EVIL;
 
-    if (you_worship(GOD_FEDHAS)
-        && ((mon.holiness() & MH_UNDEAD && !mon.is_insubstantial())
-            || mon.has_corpse_violating_spell()))
-    {
-        return DID_CORPSE_VIOLATION;
-    }
-
     if (is_evil_god(you.religion) && mon.is_holy())
         return DID_HOLY;
 
@@ -2879,10 +2879,6 @@ bool player_angers_monster(monster* mon, bool real)
             {
             case DID_EVIL:
                 mprf("%s %s enraged by your holy aura!",
-                    mname.c_str(), vcomplex.c_str());
-                break;
-            case DID_CORPSE_VIOLATION:
-                mprf("%s %s revulsed by your support of nature!",
                     mname.c_str(), vcomplex.c_str());
                 break;
             case DID_HOLY:

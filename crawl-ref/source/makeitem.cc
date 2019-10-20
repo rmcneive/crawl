@@ -495,8 +495,6 @@ static void _generate_weapon_item(item_def& item, bool allow_uniques,
     }
 }
 
-// Current list is based on dpeg's original post to the Wiki, found at the
-// page: <http://crawl.develz.org/wiki/doku.php?id=DCSS%3Aissue%3A41>.
 // Remember to update the code in is_missile_brand_ok if adding or altering
 // brands that are applied to missiles. {due}
 static special_missile_type _determine_missile_brand(const item_def& item,
@@ -506,11 +504,17 @@ static special_missile_type _determine_missile_brand(const item_def& item,
     if (item.brand != 0)
         return static_cast<special_missile_type>(item.brand);
 
-    const bool force_good = item_level >= ISPEC_GIFT;
     special_missile_type rc = SPMSL_NORMAL;
 
-    // "Normal weight" of SPMSL_NORMAL.
-    int nw = force_good ? 0 : random2(2000 - 55 * item_level);
+    // Weight of SPMSL_NORMAL
+    // Gifts from Trog/Oka can be unbranded boomerangs/javelins
+    // but not poisoned darts
+    int nw = item_level >= ISPEC_GOOD_ITEM ?   0 :
+             item_level == ISPEC_GIFT      ? 120
+                                           : random2(2000 - 55 * item_level);
+
+    // Weight of SPMSL_POISONED
+    int pw = item_level >= ISPEC_GIFT ? 0 : random2(2000 - 55 * item_level);
 
     switch (item.sub_type)
     {
@@ -532,7 +536,7 @@ static special_missile_type _determine_missile_brand(const item_def& item,
 
         rc = random_choose_weighted(60, SPMSL_BLINDING,
                                     20, SPMSL_FRENZY,
-                                    nw, SPMSL_POISONED);
+                                    pw, SPMSL_POISONED);
         break;
     case MI_JAVELIN:
         rc = random_choose_weighted(90, SPMSL_SILVER,
@@ -1115,10 +1119,26 @@ static void _generate_armour_item(item_def& item, bool allow_uniques,
     // Forced randart.
     if (item_level == ISPEC_RANDART)
     {
+        int ego = item.brand;
         for (int i = 0; i < 100; ++i)
             if (_try_make_armour_artefact(item, force_type, 0, true, agent)
                 && is_artefact(item))
             {
+                // borrowed from similar code for weapons -- is this really the
+                // best way to force an ego??
+                if (ego > SPARM_NORMAL)
+                {
+                    item.props[ARTEFACT_PROPS_KEY].get_vector()[ARTP_BRAND].get_short() = ego;
+                    if (randart_is_bad(item)) // recheck, the brand changed
+                    {
+                        force_type = item.sub_type;
+                        item.clear();
+                        item.quantity = 1;
+                        item.base_type = OBJ_ARMOUR;
+                        item.sub_type = force_type;
+                        continue;
+                    }
+                }
                 return;
             }
         // fall back to an ordinary item
@@ -1738,6 +1758,102 @@ void squash_plusses(int item_slot)
     set_equip_desc(item, ISFLAG_NO_DESC);
 }
 
+static bool _ego_unrand_only(int base_type, int ego)
+{
+    if (base_type == OBJ_WEAPONS)
+    {
+        switch (static_cast<brand_type>(ego))
+        {
+        case SPWPN_REAPING:
+        case SPWPN_ACID:
+            return true;
+        default:
+            return false;
+        }
+    }
+    // all armours are ok?
+    return false;
+}
+
+// Make a corresponding randart instead as a fallback.
+// Attempts to use base type, sub type, and ego (for armour/weapons).
+// Artefacts can explicitly specify a base type and fallback type.
+
+// Could be even more flexible: maybe allow an item spec to describe
+// complex fallbacks?
+static void _setup_fallback_randart(const int unrand_id,
+                                    item_def &item,
+                                    int &force_type,
+                                    int &item_level)
+{
+    ASSERT(get_unrand_entry(unrand_id));
+    const unrandart_entry &unrand = *get_unrand_entry(unrand_id);
+    dprf("Placing fallback randart for %s", unrand.name);
+
+    uint8_t fallback_sub_type;
+    if (unrand.fallback_base_type != OBJ_UNASSIGNED)
+    {
+        item.base_type = unrand.fallback_base_type;
+        fallback_sub_type = unrand.fallback_sub_type;
+    }
+    else
+    {
+        item.base_type = unrand.base_type;
+        fallback_sub_type = unrand.sub_type;
+    }
+
+    if (item.base_type == OBJ_WEAPONS
+        && fallback_sub_type == WPN_STAFF)
+    {
+        item.base_type = OBJ_STAVES;
+        if (unrand_id == UNRAND_WUCAD_MU)
+            force_type = STAFF_ENERGY;
+        else if (unrand_id == UNRAND_OLGREB)
+            force_type = STAFF_POISON;
+        else
+            force_type = OBJ_RANDOM;
+        // XXX: small chance of the other unrand...
+        // (but we won't hit this case until a new staff unrand is added)
+    }
+    else if (item.base_type == OBJ_JEWELLERY
+             && fallback_sub_type == AMU_NOTHING)
+    {
+        force_type = NUM_JEWELLERY;
+    }
+    else
+        force_type = fallback_sub_type;
+
+    // import some brand information from the unrand. TODO: I'm doing this for
+    // the sake of vault designers who make themed vaults. But it also often
+    // makes the item more redundant with the unrand; maybe add a bit more
+    // flexibility in item specs so that this part is optional? However, from a
+    // seeding perspective, it also makes sense if the item generated is
+    // very comparable.
+
+    // unset fallback_brand is -1. In that case it will try to use the regular
+    // brand if there is one. If the end result here is 0, the brand (for
+    // weapons) will be chosen randomly. So to force randomness, use
+    // SPWPN_NORMAL on the fallback ego, or set neither. (Randarts cannot be
+    // unbranded.)
+    item.brand = unrand.fallback_brand; // no type checking here...
+
+    if (item.brand < 0
+        && !_ego_unrand_only(item.base_type, unrand.prpty[ARTP_BRAND])
+        && item.base_type == unrand.base_type // brand isn't well-defined for != case
+        && ((item.base_type == OBJ_WEAPONS
+             && is_weapon_brand_ok(item.sub_type, unrand.prpty[ARTP_BRAND], true))
+            || (item.base_type == OBJ_ARMOUR
+             && is_armour_brand_ok(item.sub_type, unrand.prpty[ARTP_BRAND], true))))
+    {
+        // maybe do jewellery too?
+        item.brand = unrand.prpty[ARTP_BRAND];
+    }
+    if (item.brand < 0)
+        item.brand = 0;
+
+    item_level = ISPEC_RANDART;
+}
+
 /**
  * Create an item.
  *
@@ -1766,6 +1882,8 @@ int items(bool allow_uniques,
           int force_ego,
           int agent)
 {
+    rng::subgenerator item_rng;
+
     ASSERT(force_ego <= 0
            || force_class == OBJ_WEAPONS
            || force_class == OBJ_ARMOUR
@@ -1848,34 +1966,8 @@ int items(bool allow_uniques,
             return p;
         }
 
-        // make a corresponding randart instead.
-        const unrandart_entry* unrand = get_unrand_entry(unrand_id);
-        ASSERT(unrand);
-        item.base_type = unrand->base_type;
-
-        if (unrand->base_type == OBJ_WEAPONS
-            && unrand->sub_type == WPN_STAFF)
-        {
-            item.base_type = OBJ_STAVES;
-            if (unrand_id == UNRAND_WUCAD_MU)
-                force_type = STAFF_ENERGY;
-            else if (unrand_id == UNRAND_OLGREB)
-                force_type = STAFF_POISON;
-            else
-                force_type = OBJ_RANDOM;
-            // XXX: small chance of the other unrand...
-            // (but we won't hit this case until a new staff unrand is added)
-        }
-        else if (unrand->base_type == OBJ_JEWELLERY
-                 && unrand->sub_type == AMU_NOTHING)
-        {
-            force_type = NUM_JEWELLERY;
-        }
-        else
-            force_type = unrand->sub_type;
-
-        item_level = ISPEC_RANDART;
-        item.brand = 0;
+        _setup_fallback_randart(unrand_id, item, force_type, item_level);
+        allow_uniques = false;
     }
 
     // Determine sub_type accordingly. {dlb}

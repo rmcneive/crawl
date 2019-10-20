@@ -585,9 +585,6 @@ void validate_mutations(bool debug_msg)
         }
     }
     ASSERT(total_temp == you.attribute[ATTR_TEMP_MUTATIONS]);
-    ASSERT(you.attribute[ATTR_TEMP_MUT_XP] >=0);
-    if (total_temp > 0)
-        ASSERT(you.attribute[ATTR_TEMP_MUT_XP] > 0);
 }
 
 string describe_mutations(bool drop_title)
@@ -648,6 +645,7 @@ string describe_mutations(bool drop_title)
         {
             result += "<green>You do not regenerate when monsters are visible.</green>\n";
             result += "<green>You are frail without blood (-20% HP).</green>\n";
+            result += "<green>You can heal yourself when you bite living creatures.</green>\n";
         }
         else
             result += "<green>Your natural rate of healing is unusually fast.</green>\n";
@@ -778,16 +776,18 @@ static string _display_vampire_attributes()
 
     string result;
 
-    const int lines = 11;
+    const int lines = 12;
     string column[lines][3] =
     {
         {"                     ", "<green>Alive</green>      ", "<lightred>Bloodless</lightred>"},
                                  //Full       Bloodless
         {"Regeneration         ", "fast       ", "none with monsters in sight"},
 
-        {"HP Modifier          ", "none       ", "-20%"},
+        {"HP modifier          ", "none       ", "-20%"},
 
         {"Stealth boost        ", "none       ", "major "},
+
+        {"Heal on bite         ", "no         ", "yes "},
 
         {"\n<w>Resistances</w>\n"
          "Poison resistance    ", "           ", "immune"},
@@ -846,10 +846,10 @@ void display_mutations()
     trim_string_right(mutation_s);
 
     auto vbox = make_shared<Box>(Widget::VERT);
+    vbox->align_cross = Widget::CENTER;
 
     const char *title_text = "Innate Abilities, Weirdness & Mutations";
     auto title = make_shared<Text>(formatted_string(title_text, WHITE));
-    title->align_self = Widget::CENTER;
     vbox->add_child(move(title));
 
     auto switcher = make_shared<Switcher>();
@@ -861,23 +861,23 @@ void display_mutations()
         auto scroller = make_shared<Scroller>();
         auto text = make_shared<Text>(formatted_string::parse_string(
                 descs[static_cast<int>(i)]));
-        text->wrap_text = true;
+        text->set_wrap_text(true);
         scroller->set_child(text);
         switcher->add_child(move(scroller));
     }
 
     switcher->current() = 0;
-    switcher->set_margin_for_sdl({20, 0, 0, 0});
-    switcher->set_margin_for_crt({1, 0, 0, 0});
+    switcher->set_margin_for_sdl(20, 0, 0, 0);
+    switcher->set_margin_for_crt(1, 0, 0, 0);
     switcher->expand_h = false;
 #ifdef USE_TILE_LOCAL
-    switcher->max_size()[0] = tiles.get_crt_font()->char_width()*80;
+    switcher->max_size().width = tiles.get_crt_font()->char_width()*80;
 #endif
     vbox->add_child(switcher);
 
     auto bottom = make_shared<Text>(_vampire_Ascreen_footer(true));
-    bottom->set_margin_for_sdl({20, 0, 0, 0});
-    bottom->set_margin_for_crt({1, 0, 0, 0});
+    bottom->set_margin_for_sdl(20, 0, 0, 0);
+    bottom->set_margin_for_crt(1, 0, 0, 0);
     if (you.species == SP_VAMPIRE)
         vbox->add_child(bottom);
 
@@ -891,16 +891,18 @@ void display_mutations()
         lastch = ev.key.keysym.sym;
         if (you.species == SP_VAMPIRE && (lastch == '!' || lastch == CK_MOUSE_CMD || lastch == '^'))
         {
-            int c = 1 - switcher->current();
-            switcher->current() = c;
+            int& c = switcher->current();
+
+            bottom->set_text(_vampire_Ascreen_footer(c));
+
+            c = 1 - c;
 #ifdef USE_TILE_WEB
             tiles.json_open_object();
             tiles.json_write_int("pane", c);
             tiles.ui_state_change("mutations", 0);
 #endif
-            bottom->set_text(_vampire_Ascreen_footer(c));
         } else
-            done = !vbox->on_event(ev);
+            done = !switcher->current_widget()->on_event(ev);
         return true;
     });
 
@@ -2540,6 +2542,12 @@ _schedule_ds_mutations(vector<mutation_type> muts)
 
 void roll_demonspawn_mutations()
 {
+    // intentionally create the subgenerator either way, so that this has the
+    // same impact on the current main rng for all chars.
+    rng::subgenerator ds_rng;
+
+    if (you.species != SP_DEMONSPAWN)
+        return;
     you.demonic_traits = _schedule_ds_mutations(
                          _order_ds_mutations(
                          _select_ds_mutations()));
