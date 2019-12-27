@@ -20,8 +20,10 @@
 
 #define ART_FUNC_H
 
+#include "areas.h"         // For silenced() and invalidate_agrid()
 #include "beam.h"          // For Lajatang of Order's silver damage
 #include "cloud.h"         // For storm bow's and robe of clouds' rain
+#include "coordit.h"       // For distance_iterator()
 #include "english.h"       // For apostrophise
 #include "exercise.h"      // For practise_evoking
 #include "fight.h"
@@ -106,7 +108,8 @@ static bool _evoke_sceptre_of_asmodeus()
     return true;
 }
 
-static bool _ASMODEUS_evoke(item_def *item, bool* did_work, bool* unevokable)
+static bool _ASMODEUS_evoke(item_def */*item*/, bool* did_work,
+                            bool* /*unevokable*/)
 {
     if (_evoke_sceptre_of_asmodeus())
     {
@@ -119,7 +122,7 @@ static bool _ASMODEUS_evoke(item_def *item, bool* did_work, bool* unevokable)
 }
 
 ////////////////////////////////////////////////////
-static void _CEREBOV_melee_effects(item_def* weapon, actor* attacker,
+static void _CEREBOV_melee_effects(item_def* /*weapon*/, actor* attacker,
                                    actor* defender, bool mondied, int dam)
 {
     if (dam)
@@ -149,7 +152,7 @@ static void _CEREBOV_melee_effects(item_def* weapon, actor* attacker,
 
 ////////////////////////////////////////////////////
 
-static void _CURSES_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _CURSES_equip(item_def */*item*/, bool *show_msgs, bool unmeld)
 {
     _equip_mpr(show_msgs, "A shiver runs down your spine.");
     if (!unmeld)
@@ -161,15 +164,15 @@ static void _CURSES_equip(item_def *item, bool *show_msgs, bool unmeld)
     }
 }
 
-static void _CURSES_world_reacts(item_def *item)
+static void _CURSES_world_reacts(item_def */*item*/)
 {
     // don't spam messages for ash worshippers
     if (one_chance_in(30) && !have_passive(passive_t::want_curses))
         curse_an_item();
 }
 
-static void _CURSES_melee_effects(item_def* weapon, actor* attacker,
-                                  actor* defender, bool mondied, int dam)
+static void _CURSES_melee_effects(item_def* /*weapon*/, actor* attacker,
+                                  actor* defender, bool mondied, int /*dam*/)
 {
     if (attacker->is_player())
         did_god_conduct(DID_EVIL, 3);
@@ -184,7 +187,7 @@ static void _CURSES_melee_effects(item_def* weapon, actor* attacker,
 
 /////////////////////////////////////////////////////
 
-static bool _DISPATER_evoke(item_def *item, bool* did_work, bool* unevokable)
+static bool _DISPATER_evoke(item_def */*item*/, bool* did_work, bool* unevokable)
 {
     if (!enough_hp(14, true))
     {
@@ -219,7 +222,7 @@ static bool _DISPATER_evoke(item_def *item, bool* did_work, bool* unevokable)
 
 ////////////////////////////////////////////////////
 
-static void _FINISHER_melee_effects(item_def* weapon, actor* attacker,
+static void _FINISHER_melee_effects(item_def* /*weapon*/, actor* attacker,
                                   actor* defender, bool mondied, int dam)
 {
     // Can't kill a monster that's already dead.
@@ -244,7 +247,7 @@ static void _FINISHER_melee_effects(item_def* weapon, actor* attacker,
 // XXX: Staff giving a boost to poison spells is hardcoded in
 // player_spec_poison()
 
-static void _OLGREB_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _OLGREB_equip(item_def */*item*/, bool *show_msgs, bool /*unmeld*/)
 {
     if (you.can_smell())
         _equip_mpr(show_msgs, "You smell chlorine.");
@@ -252,7 +255,7 @@ static void _OLGREB_equip(item_def *item, bool *show_msgs, bool unmeld)
         _equip_mpr(show_msgs, "The staff glows a sickly green.");
 }
 
-static void _OLGREB_unequip(item_def *item, bool *show_msgs)
+static void _OLGREB_unequip(item_def */*item*/, bool *show_msgs)
 {
     if (you.can_smell())
         _equip_mpr(show_msgs, "The smell of chlorine vanishes.");
@@ -260,7 +263,7 @@ static void _OLGREB_unequip(item_def *item, bool *show_msgs)
         _equip_mpr(show_msgs, "The staff's sickly green glow vanishes.");
 }
 
-static bool _OLGREB_evoke(item_def *item, bool* did_work, bool* unevokable)
+static bool _OLGREB_evoke(item_def */*item*/, bool* did_work, bool* unevokable)
 {
     if (!enough_mp(4, false))
     {
@@ -292,8 +295,9 @@ static bool _OLGREB_evoke(item_def *item, bool* did_work, bool* unevokable)
     return false;
 }
 
-static void _OLGREB_melee_effects(item_def* weapon, actor* attacker,
-                                  actor* defender, bool mondied, int dam)
+static void _OLGREB_melee_effects(item_def* /*weapon*/, actor* attacker,
+                                  actor* defender, bool /*mondied*/,
+                                  int /*dam*/)
 {
     if (defender->alive())
         defender->poison(attacker, 2);
@@ -306,7 +310,7 @@ static void _power_pluses(item_def *item)
     item->plus = min(you.hp / 10, 27);
 }
 
-static void _POWER_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _POWER_equip(item_def *item, bool *show_msgs, bool /*unmeld*/)
 {
     _equip_mpr(show_msgs, "You sense an aura of extreme power.");
     _power_pluses(item);
@@ -319,7 +323,7 @@ static void _POWER_world_reacts(item_def *item)
 
 ////////////////////////////////////////////////////
 
-static void _SINGING_SWORD_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _SINGING_SWORD_equip(item_def *item, bool *show_msgs, bool /*unmeld*/)
 {
     bool def_show = true;
 
@@ -368,8 +372,8 @@ static void _SINGING_SWORD_world_reacts(item_def *item)
 }
 
 static void _SINGING_SWORD_melee_effects(item_def* weapon, actor* attacker,
-                                         actor* defender, bool mondied,
-                                         int dam)
+                                         actor* defender, bool /*mondied*/,
+                                         int /*dam*/)
 {
     int tier;
 
@@ -408,12 +412,12 @@ static void _SINGING_SWORD_melee_effects(item_def* weapon, actor* attacker,
 }
 ////////////////////////////////////////////////////
 
-static void _PRUNE_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _PRUNE_equip(item_def */*item*/, bool *show_msgs, bool /*unmeld*/)
 {
     _equip_mpr(show_msgs, "You feel pruney.");
 }
 
-static void _PRUNE_world_reacts(item_def *item)
+static void _PRUNE_world_reacts(item_def */*item*/)
 {
     if (one_chance_in(10))
         did_god_conduct(DID_CHAOS, 1);
@@ -421,13 +425,14 @@ static void _PRUNE_world_reacts(item_def *item)
 
 ////////////////////////////////////////////////////
 
-static void _TORMENT_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _TORMENT_equip(item_def */*item*/, bool *show_msgs, bool /*unmeld*/)
 {
     _equip_mpr(show_msgs, "A terribly searing pain shoots up your arm!");
 }
 
-static void _TORMENT_melee_effects(item_def* weapon, actor* attacker,
-                                   actor* defender, bool mondied, int dam)
+static void _TORMENT_melee_effects(item_def* /*weapon*/, actor* attacker,
+                                   actor* /*defender*/, bool /*mondied*/,
+                                   int /*dam*/)
 {
     if (one_chance_in(5))
         torment(attacker, TORMENT_SCEPTRE, attacker->pos());
@@ -435,12 +440,12 @@ static void _TORMENT_melee_effects(item_def* weapon, actor* attacker,
 
 /////////////////////////////////////////////////////
 
-static void _TROG_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _TROG_equip(item_def */*item*/, bool *show_msgs, bool /*unmeld*/)
 {
     _equip_mpr(show_msgs, "You feel bloodthirsty!");
 }
 
-static void _TROG_unequip(item_def *item, bool *show_msgs)
+static void _TROG_unequip(item_def */*item*/, bool *show_msgs)
 {
     _equip_mpr(show_msgs, "You feel less violent.");
 }
@@ -483,7 +488,7 @@ static void _wucad_backfire()
     }
 }
 
-static bool _WUCAD_MU_evoke(item_def *item, bool* did_work, bool* unevokable)
+static bool _WUCAD_MU_evoke(item_def */*item*/, bool* did_work, bool* unevokable)
 {
     if (you.magic_points == you.max_magic_points)
     {
@@ -520,7 +525,7 @@ static bool _WUCAD_MU_evoke(item_def *item, bool* did_work, bool* unevokable)
 // XXX: Always getting maximal vampiric drain is hardcoded in
 // attack::apply_damage_brand()
 
-static void _VAMPIRES_TOOTH_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _VAMPIRES_TOOTH_equip(item_def */*item*/, bool *show_msgs, bool /*unmeld*/)
 {
     if (you.undead_state() == US_ALIVE
         && (you.species == SP_VAMPIRE || !you_foodless()))
@@ -535,9 +540,9 @@ static void _VAMPIRES_TOOTH_equip(item_def *item, bool *show_msgs, bool unmeld)
 
 ///////////////////////////////////////////////////
 
-static void _VARIABILITY_melee_effects(item_def* weapon, actor* attacker,
-                                       actor* defender, bool mondied,
-                                       int dam)
+static void _VARIABILITY_melee_effects(item_def* /*weapon*/, actor* attacker,
+                                       actor* /*defender*/, bool mondied,
+                                       int /*dam*/)
 {
     if (!mondied && one_chance_in(5))
     {
@@ -550,13 +555,15 @@ static void _VARIABILITY_melee_effects(item_def* weapon, actor* attacker,
 
 ///////////////////////////////////////////////////
 
-static void _ZONGULDROK_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _ZONGULDROK_equip(item_def */*item*/, bool *show_msgs,
+                              bool /*unmeld*/)
 {
     _equip_mpr(show_msgs, "You sense an extremely unholy aura.");
 }
 
-static void _ZONGULDROK_melee_effects(item_def* weapon, actor* attacker,
-                                      actor* defender, bool mondied, int dam)
+static void _ZONGULDROK_melee_effects(item_def* /*weapon*/, actor* attacker,
+                                      actor* /*defender*/, bool /*mondied*/,
+                                      int /*dam*/)
 {
     if (attacker->is_player())
         did_god_conduct(DID_EVIL, 3);
@@ -564,8 +571,9 @@ static void _ZONGULDROK_melee_effects(item_def* weapon, actor* attacker,
 
 ///////////////////////////////////////////////////
 
-static void _GONG_melee_effects(item_def* item, actor* wearer,
-                                actor* attacker, bool dummy, int dam)
+static void _GONG_melee_effects(item_def* /*item*/, actor* wearer,
+                                actor* /*attacker*/, bool /*dummy*/,
+                                int /*dam*/)
 {
     if (silenced(wearer->pos()))
         return;
@@ -580,8 +588,9 @@ static void _GONG_melee_effects(item_def* item, actor* wearer,
 
 ///////////////////////////////////////////////////
 
-static void _DEMON_AXE_melee_effects(item_def* item, actor* attacker,
-                                     actor* defender, bool mondied, int dam)
+static void _DEMON_AXE_melee_effects(item_def* /*item*/, actor* attacker,
+                                     actor* /*defender*/, bool /*mondied*/,
+                                     int /*dam*/)
 {
     if (one_chance_in(10))
     {
@@ -613,7 +622,7 @@ static monster* _find_nearest_possible_beholder()
     return nullptr;
 }
 
-static void _DEMON_AXE_world_reacts(item_def *item)
+static void _DEMON_AXE_world_reacts(item_def */*item*/)
 {
 
     monster* mon = _find_nearest_possible_beholder();
@@ -644,7 +653,7 @@ static void _DEMON_AXE_world_reacts(item_def *item)
     you.add_beholder(closest, true);
 }
 
-static void _DEMON_AXE_unequip(item_def *item, bool *show_msgs)
+static void _DEMON_AXE_unequip(item_def */*item*/, bool */*show_msgs*/)
 {
     if (you.beheld())
     {
@@ -659,7 +668,7 @@ static void _DEMON_AXE_unequip(item_def *item, bool *show_msgs)
 
 ///////////////////////////////////////////////////
 
-static void _WYRMBANE_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _WYRMBANE_equip(item_def */*item*/, bool *show_msgs, bool /*unmeld*/)
 {
     _equip_mpr(show_msgs,
                species_is_draconian(you.species)
@@ -762,7 +771,7 @@ static void _WYRMBANE_melee_effects(item_def* weapon, actor* attacker,
 
 ///////////////////////////////////////////////////
 
-static void _UNDEADHUNTER_melee_effects(item_def* item, actor* attacker,
+static void _UNDEADHUNTER_melee_effects(item_def* /*item*/, actor* attacker,
                                         actor* defender, bool mondied, int dam)
 {
     if (defender->holiness() & MH_UNDEAD && !one_chance_in(3)
@@ -776,66 +785,68 @@ static void _UNDEADHUNTER_melee_effects(item_def* item, actor* attacker,
 }
 
 ///////////////////////////////////////////////////
-static void _EOS_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _EOS_equip(item_def */*item*/, bool */*show_msgs*/, bool /*unmeld*/)
 {
     invalidate_agrid(true);
 }
 
-static void _EOS_unequip(item_def *item, bool *show_msgs)
-{
-    invalidate_agrid(true);
-}
-
-///////////////////////////////////////////////////
-static void _SHADOWS_equip(item_def *item, bool *show_msgs, bool unmeld)
-{
-    invalidate_agrid(true);
-}
-
-static void _SHADOWS_unequip(item_def *item, bool *show_msgs)
+static void _EOS_unequip(item_def */*item*/, bool */*show_msgs*/)
 {
     invalidate_agrid(true);
 }
 
 ///////////////////////////////////////////////////
-static void _DEVASTATOR_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _SHADOWS_equip(item_def */*item*/, bool */*show_msgs*/, bool /*unmeld*/)
+{
+    invalidate_agrid(true);
+}
+
+static void _SHADOWS_unequip(item_def */*item*/, bool */*show_msgs*/)
+{
+    invalidate_agrid(true);
+}
+
+///////////////////////////////////////////////////
+static void _DEVASTATOR_equip(item_def */*item*/, bool *show_msgs,
+                              bool /*unmeld*/)
 {
     _equip_mpr(show_msgs, "Time to lay down the shillelagh law.");
 }
 
-static void _DEVASTATOR_melee_effects(item_def* item, actor* attacker,
-                                      actor* defender, bool mondied, int dam)
+static void _DEVASTATOR_melee_effects(item_def* /*item*/, actor* attacker,
+                                      actor* defender, bool /*mondied*/,
+                                      int dam)
 {
     if (dam)
         shillelagh(attacker, defender->pos(), dam);
 }
 
 ///////////////////////////////////////////////////
-static void _DRAGONSKIN_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _DRAGONSKIN_equip(item_def */*item*/, bool *show_msgs, bool /*unmeld*/)
 {
     _equip_mpr(show_msgs, "You feel oddly protected from the elements.");
 }
 
-static void _DRAGONSKIN_unequip(item_def *item, bool *show_msgs)
+static void _DRAGONSKIN_unequip(item_def */*item*/, bool *show_msgs)
 {
     _equip_mpr(show_msgs, "You no longer feel protected from the elements.");
 }
 
 ///////////////////////////////////////////////////
-static void _BLACK_KNIGHT_HORSE_world_reacts(item_def *item)
+static void _BLACK_KNIGHT_HORSE_world_reacts(item_def */*item*/)
 {
     if (one_chance_in(10))
         did_god_conduct(DID_EVIL, 1);
 }
 
 ///////////////////////////////////////////////////
-static void _NIGHT_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _NIGHT_equip(item_def */*item*/, bool *show_msgs, bool /*unmeld*/)
 {
     update_vision_range();
     _equip_mpr(show_msgs, "The light fades from your surroundings.");
 }
 
-static void _NIGHT_unequip(item_def *item, bool *show_msgs)
+static void _NIGHT_unequip(item_def */*item*/, bool *show_msgs)
 {
     update_vision_range();
     _equip_mpr(show_msgs, "The light returns to your surroundings.");
@@ -843,9 +854,9 @@ static void _NIGHT_unequip(item_def *item, bool *show_msgs)
 
 ///////////////////////////////////////////////////
 
-static void _PLUTONIUM_SWORD_melee_effects(item_def* weapon, actor* attacker,
-                                           actor* defender, bool mondied,
-                                           int dam)
+static void _PLUTONIUM_SWORD_melee_effects(item_def* /*weapon*/,
+                                           actor* attacker, actor* defender,
+                                           bool mondied, int /*dam*/)
 {
     if (!mondied && one_chance_in(5)
         && (!defender->is_monster()
@@ -864,8 +875,8 @@ static void _PLUTONIUM_SWORD_melee_effects(item_def* weapon, actor* attacker,
 
 ///////////////////////////////////////////////////
 
-static void _SNAKEBITE_melee_effects(item_def* weapon, actor* attacker,
-                                     actor* defender, bool mondied, int dam)
+static void _SNAKEBITE_melee_effects(item_def* /*weapon*/, actor* attacker,
+                                     actor* defender, bool mondied, int /*dam*/)
 {
     if (!mondied && x_chance_in_y(2, 5))
     {
@@ -876,8 +887,8 @@ static void _SNAKEBITE_melee_effects(item_def* weapon, actor* attacker,
 
 ///////////////////////////////////////////////////
 
-static void _WOE_melee_effects(item_def* weapon, actor* attacker,
-                               actor* defender, bool mondied, int dam)
+static void _WOE_melee_effects(item_def* /*weapon*/, actor* attacker,
+                               actor* defender, bool mondied, int /*dam*/)
 {
     const char *verb = "bugger", *adv = "";
     switch (random2(8))
@@ -906,8 +917,8 @@ static void _WOE_melee_effects(item_def* weapon, actor* attacker,
 
 ///////////////////////////////////////////////////
 
-static setup_missile_type _DAMNATION_launch(item_def* item, bolt* beam,
-                                           string* ammo_name, bool* returning)
+static setup_missile_type _DAMNATION_launch(item_def* /*item*/, bolt* beam,
+                                           string* ammo_name, bool* /*returning*/)
 {
     ASSERT(beam->item
            && beam->item->base_type == OBJ_MISSILES
@@ -1005,19 +1016,19 @@ static void _ELEMENTAL_STAFF_melee_effects(item_def*, actor* attacker,
 
 ///////////////////////////////////////////////////
 
-static void _ARC_BLADE_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _ARC_BLADE_equip(item_def */*item*/, bool *show_msgs, bool /*unmeld*/)
 {
     _equip_mpr(show_msgs, "The arc blade crackles to life.");
 }
 
-static void _ARC_BLADE_unequip(item_def *item, bool *show_msgs)
+static void _ARC_BLADE_unequip(item_def */*item*/, bool *show_msgs)
 {
     _equip_mpr(show_msgs, "The arc blade stops crackling.");
 }
 
-static void _ARC_BLADE_melee_effects(item_def* weapon, actor* attacker,
-                                     actor* defender, bool mondied,
-                                     int dam)
+static void _ARC_BLADE_melee_effects(item_def* /*weapon*/, actor* attacker,
+                                     actor* /*defender*/, bool /*mondied*/,
+                                     int /*dam*/)
 {
     if (one_chance_in(3))
     {
@@ -1034,9 +1045,9 @@ static void _ARC_BLADE_melee_effects(item_def* weapon, actor* attacker,
 
 ///////////////////////////////////////////////////
 
-static void _SPELLBINDER_melee_effects(item_def* weapon, actor* attacker,
+static void _SPELLBINDER_melee_effects(item_def* /*weapon*/, actor* attacker,
                                        actor* defender, bool mondied,
-                                       int dam)
+                                       int /*dam*/)
 {
     // Only cause miscasts if the target has magic to disrupt.
     if (defender->antimagic_susceptible()
@@ -1051,7 +1062,7 @@ static void _SPELLBINDER_melee_effects(item_def* weapon, actor* attacker,
 
 ///////////////////////////////////////////////////
 
-static void _ORDER_melee_effects(item_def* item, actor* attacker,
+static void _ORDER_melee_effects(item_def* /*item*/, actor* attacker,
                                          actor* defender, bool mondied, int dam)
 {
     if (!mondied)
@@ -1071,17 +1082,18 @@ static void _ORDER_melee_effects(item_def* item, actor* attacker,
 
 ///////////////////////////////////////////////////
 
-static void _FIRESTARTER_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _FIRESTARTER_equip(item_def */*item*/, bool *show_msgs,
+                               bool /*unmeld*/)
 {
     _equip_mpr(show_msgs, "You are filled with an inner flame.");
 }
 
-static void _FIRESTARTER_unequip(item_def *item, bool *show_msgs)
+static void _FIRESTARTER_unequip(item_def */*item*/, bool *show_msgs)
 {
     _equip_mpr(show_msgs, "Your inner flame fades away.");
 }
 
-static void _FIRESTARTER_melee_effects(item_def* weapon, actor* attacker,
+static void _FIRESTARTER_melee_effects(item_def* /*weapon*/, actor* attacker,
                                    actor* defender, bool mondied, int dam)
 {
     if (dam)
@@ -1102,17 +1114,18 @@ static void _FIRESTARTER_melee_effects(item_def* weapon, actor* attacker,
 ///////////////////////////////////////////////////
 
 #if TAG_MAJOR_VERSION == 34
-static void _CHILLY_DEATH_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _CHILLY_DEATH_equip(item_def */*item*/, bool *show_msgs,
+                                bool /*unmeld*/)
 {
     _equip_mpr(show_msgs, "The dagger glows with an icy blue light!");
 }
 
-static void _CHILLY_DEATH_unequip(item_def *item, bool *show_msgs)
+static void _CHILLY_DEATH_unequip(item_def */*item*/, bool *show_msgs)
 {
     _equip_mpr(show_msgs, "The dagger stops glowing.");
 }
 
-static void _CHILLY_DEATH_melee_effects(item_def* weapon, actor* attacker,
+static void _CHILLY_DEATH_melee_effects(item_def* /*weapon*/, actor* attacker,
                                    actor* defender, bool mondied, int dam)
 {
     if (dam)
@@ -1140,17 +1153,18 @@ static void _CHILLY_DEATH_melee_effects(item_def* weapon, actor* attacker,
 ///////////////////////////////////////////////////
 
 #if TAG_MAJOR_VERSION == 34
-static void _FLAMING_DEATH_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _FLAMING_DEATH_equip(item_def */*item*/, bool *show_msgs,
+                                 bool /*unmeld*/)
 {
     _equip_mpr(show_msgs, "The scimitar bursts into red hot flame!");
 }
 
-static void _FLAMING_DEATH_unequip(item_def *item, bool *show_msgs)
+static void _FLAMING_DEATH_unequip(item_def */*item*/, bool *show_msgs)
 {
     _equip_mpr(show_msgs, "The scimitar stops flaming.");
 }
 
-static void _FLAMING_DEATH_melee_effects(item_def* weapon, actor* attacker,
+static void _FLAMING_DEATH_melee_effects(item_def* /*weapon*/, actor* attacker,
                                    actor* defender, bool mondied, int dam)
 {
     if (!mondied && (dam > 2 && one_chance_in(3)))
@@ -1170,7 +1184,7 @@ static void _FLAMING_DEATH_melee_effects(item_def* weapon, actor* attacker,
 
 ///////////////////////////////////////////////////
 
-static void _MAJIN_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _MAJIN_equip(item_def *item, bool *show_msgs, bool /*unmeld*/)
 {
     if (!you.max_magic_points)
         return;
@@ -1187,7 +1201,7 @@ static void _MAJIN_equip(item_def *item, bool *show_msgs, bool unmeld)
     }
 }
 
-static void _MAJIN_unequip(item_def *item, bool *show_msgs)
+static void _MAJIN_unequip(item_def */*item*/, bool *show_msgs)
 {
     if (you.max_magic_points)
     {
@@ -1215,7 +1229,8 @@ static int _octorings_worn()
     return worn;
 }
 
-static void _OCTOPUS_KING_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _OCTOPUS_KING_equip(item_def *item, bool *show_msgs,
+                                bool /*unmeld*/)
 {
     int rings = _octorings_worn();
 
@@ -1233,7 +1248,7 @@ static void _OCTOPUS_KING_world_reacts(item_def *item)
 
 ///////////////////////////////////////////////////
 
-static void _CAPTAIN_melee_effects(item_def* weapon, actor* attacker,
+static void _CAPTAIN_melee_effects(item_def* /*weapon*/, actor* attacker,
                                 actor* defender, bool mondied, int dam)
 {
     // Player disarming sounds like a bad idea; monster-on-monster might
@@ -1260,19 +1275,20 @@ static void _CAPTAIN_melee_effects(item_def* weapon, actor* attacker,
 
 ///////////////////////////////////////////////////
 
-static void _FENCERS_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _FENCERS_equip(item_def */*item*/, bool *show_msgs, bool /*unmeld*/)
 {
     _equip_mpr(show_msgs, "En garde!");
 }
 
 ///////////////////////////////////////////////////
 
-static void _ETHERIC_CAGE_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _ETHERIC_CAGE_equip(item_def */*item*/, bool *show_msgs,
+                                bool /*unmeld*/)
 {
     _equip_mpr(show_msgs, "You sense a greater flux of ambient magical fields.");
 }
 
-static void _ETHERIC_CAGE_world_reacts(item_def *item)
+static void _ETHERIC_CAGE_world_reacts(item_def */*item*/)
 {
     const int delay = you.time_taken;
     ASSERT(delay > 0);
@@ -1286,19 +1302,20 @@ static void _ETHERIC_CAGE_world_reacts(item_def *item)
 ///////////////////////////////////////////////////
 
 #if TAG_MAJOR_VERSION == 34
-static void _ETERNAL_TORMENT_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _ETERNAL_TORMENT_equip(item_def */*item*/, bool */*show_msgs*/,
+                                   bool /*unmeld*/)
 {
     calc_hp();
 }
 
-static void _ETERNAL_TORMENT_world_reacts(item_def *item)
+static void _ETERNAL_TORMENT_world_reacts(item_def */*item*/)
 {
     if (one_chance_in(10))
         did_god_conduct(DID_EVIL, 1);
 }
 
 
-static void _ETERNAL_TORMENT_unequip(item_def *item, bool *show_msgs)
+static void _ETERNAL_TORMENT_unequip(item_def */*item*/, bool */*show_msgs*/)
 {
     calc_hp();
 }
@@ -1306,32 +1323,33 @@ static void _ETERNAL_TORMENT_unequip(item_def *item, bool *show_msgs)
 
 ///////////////////////////////////////////////////
 
-static void _VINES_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _VINES_equip(item_def */*item*/, bool *show_msgs, bool /*unmeld*/)
 {
     _equip_mpr(show_msgs, "The vines latch onto your body!");
 }
 
-static void _VINES_unequip(item_def *item, bool *show_msgs)
+static void _VINES_unequip(item_def */*item*/, bool *show_msgs)
 {
     _equip_mpr(show_msgs, "The vines fall away from your body!");
 }
 
 ///////////////////////////////////////////////////
 
-static void _KRYIAS_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _KRYIAS_equip(item_def */*item*/, bool *show_msgs, bool /*unmeld*/)
 {
     _equip_mpr(show_msgs, "Your attunement to healing potions increases.");
 }
 
-static void _KRYIAS_unequip(item_def *item, bool *show_msgs)
+static void _KRYIAS_unequip(item_def */*item*/, bool *show_msgs)
 {
     _equip_mpr(show_msgs, "Your attunement to healing potions decreases.");
 }
 
 ///////////////////////////////////////////////////
 
-static void _FROSTBITE_melee_effects(item_def* weapon, actor* attacker,
-                                    actor* defender, bool mondied, int dam)
+static void _FROSTBITE_melee_effects(item_def* /*weapon*/, actor* attacker,
+                                     actor* defender, bool /*mondied*/,
+                                     int /*dam*/)
 {
     coord_def spot = defender->pos();
     if (!cell_is_solid(spot)
@@ -1346,7 +1364,7 @@ static void _FROSTBITE_melee_effects(item_def* weapon, actor* attacker,
 
 // Vampiric effect triggers on every hit, see attack::apply_damage_brand()
 
-static void _LEECH_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _LEECH_equip(item_def */*item*/, bool *show_msgs, bool /*unmeld*/)
 {
     if (you.undead_state() == US_ALIVE
         && (you.species == SP_VAMPIRE || !you_foodless()))
@@ -1361,7 +1379,8 @@ static void _LEECH_equip(item_def *item, bool *show_msgs, bool unmeld)
 
 ///////////////////////////////////////////////////
 
-static void _THERMIC_ENGINE_equip(item_def *item, bool *show_msgs, bool unmeld)
+static void _THERMIC_ENGINE_equip(item_def *item, bool *show_msgs,
+                                  bool /*unmeld*/)
 {
     _equip_mpr(show_msgs, "The engine hums to life!");
     item->plus = 2;
@@ -1421,7 +1440,7 @@ static void _THERMIC_ENGINE_world_reacts(item_def *item)
 
 ///////////////////////////////////////////////////
 
-static void _ZHOR_world_reacts(item_def *item)
+static void _ZHOR_world_reacts(item_def */*item*/)
 {
     if (there_are_monsters_nearby(true, false, false)
         && one_chance_in(7 * div_rand_round(BASELINE_DELAY, you.time_taken)))
@@ -1435,12 +1454,12 @@ static void _ZHOR_world_reacts(item_def *item)
 // XXX: Staff of Battle giving a boost to conjuration spells is hardcoded in
 // player_spec_conj().
 
-static void _BATTLE_unequip(item_def *item, bool *show_msgs)
+static void _BATTLE_unequip(item_def */*item*/, bool */*show_msgs*/)
 {
     end_battlesphere(find_battlesphere(&you), false);
 }
 
-static void _BATTLE_world_reacts(item_def *item)
+static void _BATTLE_world_reacts(item_def */*item*/)
 {
     if (!find_battlesphere(&you) && there_are_monsters_nearby(true, true, false))
     {

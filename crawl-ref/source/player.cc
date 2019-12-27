@@ -59,7 +59,6 @@
 #include "player-equip.h"
 #include "player-save-info.h"
 #include "player-stats.h"
-#include "potion.h"
 #include "prompt.h"
 #include "religion.h"
 #include "shout.h"
@@ -244,6 +243,26 @@ bool check_moveto_terrain(const coord_def& p, const string &move_verb,
 
     if (!_check_moveto_dangerous(p, msg))
         return false;
+    if (!you.airborne() && env.grid(you.pos()) != DNGN_TOXIC_BOG
+        && env.grid(p) == DNGN_TOXIC_BOG)
+    {
+        string prompt;
+
+        if (prompted)
+            *prompted = true;
+
+        if (!msg.empty())
+            prompt = msg + " ";
+
+        prompt += "Are you sure you want to " + move_verb
+                + " into a toxic bog?";
+
+        if (!yesno(prompt.c_str(), false, 'n'))
+        {
+            canned_msg(MSG_OK);
+            return false;
+        }
+    }
     if (!need_expiration_warning() && need_expiration_warning(p)
         && !crawl_state.disables[DIS_CONFIRMATIONS])
     {
@@ -446,9 +465,18 @@ void moveto_location_effects(dungeon_feature_type old_feat,
             {
                 if (!feat_is_water(old_feat))
                 {
-                    mprf("You %s the %s water.",
-                         stepped ? "enter" : "fall into",
-                         new_grid == DNGN_SHALLOW_WATER ? "shallow" : "deep");
+                    if (new_grid == DNGN_TOXIC_BOG)
+                    {
+                        mprf("You %s the toxic bog.",
+                                stepped ? "enter" : "fall into");
+                    }
+                    else
+                    {
+                        mprf("You %s the %s water.",
+                             stepped ? "enter" : "fall into",
+                             new_grid == DNGN_SHALLOW_WATER ? "shallow"
+                             : "deep");
+                    }
                 }
 
                 if (new_grid == DNGN_DEEP_WATER && old_feat != DNGN_DEEP_WATER)
@@ -474,6 +502,10 @@ void moveto_location_effects(dungeon_feature_type old_feat,
     }
 
     id_floor_items();
+
+    // Falling into a toxic bog, take the damage
+    if (old_pos == you.pos() && stepped)
+        actor_apply_toxic_bog(&you);
 
     // Traps go off.
     // (But not when losing flight - i.e., moving into the same tile)
@@ -1645,7 +1677,7 @@ int player_res_poison(bool calc_unid, bool temp, bool items)
     return rp;
 }
 
-int player_res_sticky_flame(bool calc_unid, bool temp, bool items)
+int player_res_sticky_flame(bool calc_unid, bool /*temp*/, bool items)
 {
     int rsf = 0;
 
@@ -1695,6 +1727,9 @@ int player_spec_fire()
     if (you.duration[DUR_FIRE_SHIELD])
         sf++;
 
+    if (player_equip_unrand(UNRAND_ELEMENTAL_STAFF))
+        sf++;
+
     return sf;
 }
 
@@ -1708,6 +1743,9 @@ int player_spec_cold()
     // rings of ice:
     sc += you.wearing(EQ_RINGS, RING_ICE);
 
+    if (player_equip_unrand(UNRAND_ELEMENTAL_STAFF))
+        sc++;
+
     return sc;
 }
 
@@ -1718,6 +1756,9 @@ int player_spec_earth()
     // Staves
     se += you.wearing(EQ_STAFF, STAFF_EARTH);
 
+    if (player_equip_unrand(UNRAND_ELEMENTAL_STAFF))
+        se++;
+
     return se;
 }
 
@@ -1727,6 +1768,9 @@ int player_spec_air()
 
     // Staves
     sa += you.wearing(EQ_STAFF, STAFF_AIR);
+
+    if (player_equip_unrand(UNRAND_ELEMENTAL_STAFF))
+        sa++;
 
     return sa;
 }
@@ -1941,7 +1985,7 @@ int player_movement_speed()
  * @param enhancers     Bonus enhancers to evocations (pak device surge).
  * @return              A modified power value.
  */
-const int player_adjust_evoc_power(const int power, int enhancers)
+int player_adjust_evoc_power(const int power, int enhancers)
 {
     const int total_enhancers = you.spec_evoke() + enhancers;
     return stepdown_spellpower(100 *apply_enhancement(power, total_enhancers));
@@ -2214,7 +2258,7 @@ int player_armour_shield_spell_penalty()
  * @param spell     The type of spell being cast.
  * @return          The number of relevant wizardry effects.
  */
-int player_wizardry(spell_type spell)
+int player_wizardry(spell_type /*spell*/)
 {
     return you.wearing(EQ_RINGS, RING_WIZARDRY)
            + you.wearing(EQ_STAFF, STAFF_WIZARDRY);
@@ -3235,7 +3279,7 @@ static void _display_vampire_status()
         attrib.push_back("significantly resist cold");
         attrib.push_back("are immune to negative energy");
         attrib.push_back("resist torment");
-        attrib.push_back("do not heal.");
+        attrib.push_back("do not heal with monsters in sight.");
     }
     else
         attrib.push_back("heal quickly.");
@@ -3546,10 +3590,10 @@ int player::scan_artefacts(artefact_prop_type which_property,
         if (!is_artefact(inv[ eq ]))
             continue;
 
-        bool known;
-        int val = artefact_property(inv[eq], which_property, known);
-        if (calc_unid || known)
+        // TODO: id check not needed, probably, due to full wear-id?
+        if (calc_unid || fully_identified(inv[eq]))
         {
+            int val = artefact_property(inv[eq], which_property);
             retval += val;
             if (matches && val)
                 matches->push_back(inv[eq]);
@@ -6028,7 +6072,7 @@ bool player::undead_or_demonic() const
     return undead_state() || species == SP_DEMONSPAWN;
 }
 
-bool player::is_holy(bool check_spells) const
+bool player::is_holy(bool /*check_spells*/) const
 {
     return bool(holiness() & MH_HOLY);
 }
@@ -6264,7 +6308,7 @@ string player::no_tele_reason(bool calc_unid, bool blinking) const
     vector<string> problems;
 
     if (duration[DUR_DIMENSION_ANCHOR])
-        problems.emplace_back("locked down by Dimension Anchor");
+        problems.emplace_back("locked down by a dimension anchor");
 
     if (form == transformation::tree)
         problems.emplace_back("held in place by your roots");
@@ -6413,7 +6457,7 @@ reach_type player::reach_range() const
     return REACH_NONE;
 }
 
-monster_type player::mons_species(bool zombie_base) const
+monster_type player::mons_species(bool /*zombie_base*/) const
 {
     return player_species_to_mons_species(species);
 }
@@ -6478,7 +6522,7 @@ void player::drain_stat(stat_type s, int amount)
     lose_stat(s, amount);
 }
 
-bool player::rot(actor *who, int amount, bool quiet, bool /*no_cleanup*/)
+bool player::rot(actor */*who*/, int amount, bool quiet, bool /*no_cleanup*/)
 {
     ASSERT(!crawl_state.game_is_arena());
 
@@ -6555,7 +6599,7 @@ bool player::corrode_equipment(const char* corrosion_source, int degree)
  * @param hurt_msg A message to display when dealing damage.
  */
 void player::splash_with_acid(const actor* evildoer, int acid_strength,
-                              bool allow_corrosion, const char* hurt_msg)
+                              bool allow_corrosion, const char* /*hurt_msg*/)
 {
     if (allow_corrosion && binomial(3, acid_strength + 1, 30))
         corrode_equipment();
@@ -6576,12 +6620,12 @@ void player::splash_with_acid(const actor* evildoer, int acid_strength,
     }
 }
 
-bool player::drain_exp(actor *who, bool quiet, int pow)
+bool player::drain_exp(actor */*who*/, bool quiet, int pow)
 {
     return drain_player(pow, !quiet);
 }
 
-void player::confuse(actor *who, int str)
+void player::confuse(actor */*who*/, int str)
 {
     confuse_player(str);
 }
@@ -6677,7 +6721,7 @@ void player::petrify(actor *who, bool force)
     mprf(MSGCH_WARN, "You are slowing down.");
 }
 
-bool player::fully_petrify(actor *foe, bool quiet)
+bool player::fully_petrify(actor */*foe*/, bool /*quiet*/)
 {
     duration[DUR_PETRIFIED] = 6 * BASELINE_DELAY
                         + random2(4 * BASELINE_DELAY);
@@ -6689,7 +6733,7 @@ bool player::fully_petrify(actor *foe, bool quiet)
     return true;
 }
 
-void player::slow_down(actor *foe, int str)
+void player::slow_down(actor */*foe*/, int str)
 {
     ::slow_player(str);
 }
@@ -7448,7 +7492,7 @@ bool player::made_nervous_by(const monster *mons)
     return false;
 }
 
-void player::weaken(actor *attacker, int pow)
+void player::weaken(actor */*attacker*/, int pow)
 {
     if (!duration[DUR_WEAK])
         mprf(MSGCH_WARN, "You feel your attacks grow feeble.");
@@ -7478,7 +7522,7 @@ bool need_expiration_warning(duration_type dur, dungeon_feature_type feat)
     if (dur == DUR_FLIGHT)
         return true;
     else if (dur == DUR_TRANSFORMATION
-             && (form_can_swim() || form_can_fly()))
+             && (form_can_swim()) || form_can_fly())
     {
         return true;
     }

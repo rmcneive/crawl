@@ -103,11 +103,10 @@ struct duration_def
         return name_text[0] ? name_text : short_text;
     }
 
-    const bool duration_has_flag(uint64_t flag_wanted) const
+    bool duration_has_flag(uint64_t flag_wanted) const
     {
         return flags & flag_wanted;
     }
-
 };
 
 /**
@@ -612,6 +611,11 @@ static const duration_def duration_data[] =
     { DUR_GRASPING_ROOTS, 0, "", "grasped by roots", "grasping roots",
       "You are constricted by grasping roots.", D_NO_FLAGS},
     { DUR_SHAFT_IMMUNITY, 0, "", "", "shaft immunity", "", D_NO_FLAGS, {{""}}},
+    { DUR_NOXIOUS_BOG,
+      MAGENTA, "Bog",
+      "noxious spew", "noxious bog",
+      "You are spewing a noxious bog.", D_DISPELLABLE,
+      {{ "Your noxious spew wanes." }}},
 
 #if TAG_MAJOR_VERSION == 34
     // And removed ones

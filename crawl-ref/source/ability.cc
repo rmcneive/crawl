@@ -15,11 +15,9 @@
 #include <sstream>
 
 #include "abyss.h"
-#include "acquire.h"
 #include "areas.h"
 #include "art-enum.h"
 #include "branch.h"
-#include "butcher.h"
 #include "chardump.h"
 #include "cleansing-flame-source-type.h"
 #include "cloud.h"
@@ -37,13 +35,10 @@
 #include "god-abil.h"
 #include "god-companions.h"
 #include "god-conduct.h"
-#include "god-prayer.h"
-#include "god-wrath.h"
 #include "hints.h"
 #include "invent.h"
 #include "item-prop.h"
 #include "items.h"
-#include "item-status-flag-type.h"
 #include "item-use.h"
 #include "level-state-type.h"
 #include "libutil.h"
@@ -1383,7 +1378,7 @@ static bool _check_ability_possible(const ability_def& abil, bool quiet = false)
         || you.duration[DUR_WATER_HOLD] && !you.res_water_drowning())
     {
         talent tal = get_talent(abil.ability, false);
-        if (tal.is_invocation)
+        if (tal.is_invocation && abil.ability != ABIL_RENOUNCE_RELIGION)
         {
             if (!quiet)
             {
@@ -1560,7 +1555,7 @@ static bool _check_ability_possible(const ability_def& abil, bool quiet = false)
         return true;
 
     case ABIL_SIF_MUNA_DIVINE_EXEGESIS:
-        return can_cast_spells();
+        return can_cast_spells(quiet, true);
 
     case ABIL_ASHENZARI_TRANSFER_KNOWLEDGE:
         if (!trainable_skills(true))
@@ -2362,7 +2357,7 @@ static spret _do_ability(const ability_def& abil, bool fail)
 
     case ABIL_TSO_CLEANSING_FLAME:
     {
-        targeter_los hitfunc(&you, LOS_SOLID, 2);
+        targeter_radius hitfunc(&you, LOS_SOLID, 2);
         {
             if (stop_attack_prompt(hitfunc, "harm", _cleansing_flame_affects))
                 return spret::abort;

@@ -26,18 +26,15 @@
 #include "lookup-help.h"
 #include "macro.h"
 #include "message.h"
-#include "output.h"
 #include "prompt.h"
 #include "scroller.h"
 #include "showsymb.h"
-#include "sound.h"
 #include "state.h"
 #include "stringutil.h"
 #include "syscalls.h"
 #include "unicode.h"
 #include "version.h"
 #include "viewchar.h"
-#include "view.h"
 
 using namespace ui;
 
@@ -224,7 +221,7 @@ static void _print_version()
     title->set_margin_for_sdl(0, 0, 0, 10);
     title_hbox->add_child(move(title));
 
-    title_hbox->align_cross = Widget::CENTER;
+    title_hbox->set_cross_alignment(Widget::CENTER);
     title_hbox->set_margin_for_crt(0, 0, 1, 0);
     title_hbox->set_margin_for_sdl(0, 0, 20, 0);
     vbox->add_child(move(title_hbox));
@@ -239,10 +236,9 @@ static void _print_version()
     auto popup = make_shared<ui::Popup>(vbox);
 
     bool done = false;
-    popup->on(Widget::slots.event, [&done, &scroller](wm_event ev) {
-        if (scroller->on_event(ev))
-            return true;
-        return done = ev.type == WME_KEYDOWN;
+    popup->on_keydown_event([&](const KeyEvent& ev) {
+        done = !scroller->on_event(ev);
+        return true;
     });
 
 #ifdef USE_TILE_WEB
@@ -1125,7 +1121,7 @@ static formatted_string _col_conv(void (*func)(column_composer &))
     for (const auto& line : cols.formatted_lines())
     {
         contents += line;
-        contents += formatted_string("\n");
+        contents += "\n";
     }
     contents.ops.pop_back();
     return contents;
@@ -1153,7 +1149,7 @@ static int _get_help_section(int section, formatted_string &header_out, formatte
             ASSERTM(fp, "Failed to open '%s'!", fname.c_str());
             while (fgets(buf, sizeof buf, fp))
             {
-                text += formatted_string(buf);
+                text += string(buf);
                 if (next_is_hotkey && (isaupper(buf[0]) || isadigit(buf[0])))
                 {
                     int hotkey = tolower_safe(buf[0]);

@@ -17,12 +17,11 @@
 #include "mutation.h"
 #include "options.h"
 #include "orb.h" // orb_limits_translocation in fill_status_info
-#include "player-equip.h"
 #include "player-stats.h"
 #include "random.h" // for midpoint_msg.offset() in duration-data
 #include "religion.h"
 #include "spl-summoning.h" // NEXT_DOOM_HOUND_KEY in duration-data
-#include "spl-transloc.h"
+#include "spl-transloc.h" // for you_teleport_now() in duration-data
 #include "spl-wpnench.h" // for _end_weapon_brand() in duration-data
 #include "stringutil.h"
 #include "throw.h"
@@ -196,6 +195,7 @@ bool fill_status_info(int status, status_info& inf)
     case DUR_FLAYED:
         inf.light_text = make_stringf("Flay (%d)",
                           (-1 * you.props["flay_damage"].get_int()));
+        break;
 
     case DUR_NO_POTIONS:
         if (you_foodless())
@@ -819,8 +819,6 @@ static void _describe_regen(status_info& inf)
     const bool regen = (you.duration[DUR_REGENERATION] > 0
                         || you.duration[DUR_TROGS_HAND] > 0);
     const bool no_heal = !player_regenerates_hp();
-    // Does vampire hunger level affect regeneration rate significantly?
-    const bool vampmod = !no_heal && !regen && you.species == SP_VAMPIRE;
 
     if (regen)
     {
@@ -851,7 +849,7 @@ static void _describe_regen(status_info& inf)
         }
         _mark_expiring(inf, dur_expiring(DUR_REGENERATION));
     }
-    else if (vampmod)
+    else if (you.species == SP_VAMPIRE && you.vampire_alive)
     {
         inf.short_text = you.disease ? "recuperating" : "regenerating";
         inf.short_text += " quickly";

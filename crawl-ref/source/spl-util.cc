@@ -17,7 +17,6 @@
 #include "areas.h"
 #include "coordit.h"
 #include "directn.h"
-#include "english.h"
 #include "env.h"
 #include "god-passive.h"
 #include "god-abil.h"
@@ -1405,6 +1404,16 @@ bool spell_no_hostile_in_range(spell_type spell)
 
     case SPELL_IGNITE_POISON:
         return cast_ignite_poison(&you, -1, false, true) == spret::abort;
+
+    case SPELL_STARBURST:
+        return cast_starburst(-1, false, true) == spret::abort;
+
+    case SPELL_HAILSTORM:
+        return cast_hailstorm(-1, false, true) == spret::abort;
+
+    case SPELL_DAZZLING_FLASH:
+        return cast_dazzling_flash(calc_spell_power(spell, true, false, true),
+                                   false, true) == spret::abort;
 
     default:
         break;

@@ -21,14 +21,11 @@
 #include "database.h"
 #include "delay.h"
 #include "describe.h"
-#include "directn.h"
 #include "english.h"
 #include "env.h"
 #include "evoke.h"
-#include "exercise.h"
 #include "fight.h"
 #include "food.h"
-#include "god-abil.h"
 #include "god-conduct.h"
 #include "god-item.h"
 #include "god-passive.h"
@@ -53,7 +50,6 @@
 #include "potion.h"
 #include "prompt.h"
 #include "religion.h"
-#include "rot.h"
 #include "shout.h"
 #include "skills.h"
 #include "sound.h"
@@ -64,7 +60,6 @@
 #include "spl-summoning.h"
 #include "spl-transloc.h"
 #include "spl-wpnench.h"
-#include "spl-zap.h"
 #include "state.h"
 #include "stringutil.h"
 #include "target.h"
@@ -818,7 +813,7 @@ bool armour_prompt(const string & mesg, int *index, operation_types oper)
  * @param item      The armour in question.
  * @return          The number of turns it takes to don or doff the item.
  */
-static int armour_equip_delay(const item_def &item)
+static int armour_equip_delay(const item_def &/*item*/)
 {
     return 5;
 }
@@ -1396,7 +1391,7 @@ static vector<equipment_type> _current_jewellery_types()
     return ret;
 }
 
-static const char _ring_slot_key(equipment_type slot)
+static char _ring_slot_key(equipment_type slot)
 {
     switch (slot)
     {
@@ -2972,7 +2967,7 @@ void read(item_def* scroll)
                                              " place you under penance!",
                                              verb_object.c_str());
 
-        targeter_los hitfunc(&you, LOS_NO_TRANS);
+        targeter_radius hitfunc(&you, LOS_NO_TRANS);
 
         if (stop_attack_prompt(hitfunc, verb_object.c_str(),
                                [which_scroll] (const actor* m)
@@ -3151,7 +3146,7 @@ void read_scroll(item_def& scroll)
             run_uncancel(UNC_ACQUIREMENT, AQ_SCROLL);
         else
             cancel_scroll = !acquirement(OBJ_RANDOM, AQ_SCROLL, false, nullptr,
-                    false, true);
+                    true);
         break;
 
     case SCR_FEAR:

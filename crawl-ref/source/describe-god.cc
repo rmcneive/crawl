@@ -24,15 +24,12 @@
 #include "god-companions.h"
 #include "god-conduct.h"
 #include "god-passive.h"
-#include "god-prayer.h"
 #include "god-type.h"
 #include "item-name.h"
 #include "libutil.h"
-#include "macro.h"
 #include "menu.h"
 #include "message.h"
 #include "religion.h"
-#include "scroller.h"
 #include "skills.h"
 #include "spl-util.h"
 #include "stringutil.h"
@@ -580,7 +577,7 @@ static formatted_string _beogh_extra_description()
         if (!mons->is_named()) continue;
         has_named_followers = true;
 
-        desc += formatted_string(mons->full_name(DESC_PLAIN).c_str());
+        desc += mons->full_name(DESC_PLAIN);
         if (companion_is_elsewhere(mons->mid))
         {
             desc += formatted_string::parse_string(
@@ -1048,7 +1045,7 @@ static formatted_string _god_overview_description(god_type which_god)
 
     // Print god's description.
     const string god_desc = getLongDescription(god_name(which_god));
-    desc += formatted_string(trimmed_string(god_desc) + "\n");
+    desc += trimmed_string(god_desc) + "\n";
 
     // Title only shown for our own god.
     if (you_worship(which_god))
@@ -1090,7 +1087,7 @@ static void build_partial_god_ui(god_type which_god, shared_ptr<ui::Popup>& popu
     topline += formatted_string(uppercase_first(god_name(which_god, true)));
 
     auto vbox = make_shared<Box>(Widget::VERT);
-    vbox->align_cross = Widget::STRETCH;
+    vbox->set_cross_alignment(Widget::STRETCH);
     auto title_hbox = make_shared<Box>(Widget::HORZ);
 
 #ifdef USE_TILE
@@ -1104,8 +1101,8 @@ static void build_partial_god_ui(god_type which_god, shared_ptr<ui::Popup>& popu
     title->set_margin_for_sdl(0, 0, 0, 16);
     title_hbox->add_child(move(title));
 
-    title_hbox->align_main = Widget::CENTER;
-    title_hbox->align_cross = Widget::CENTER;
+    title_hbox->set_main_alignment(Widget::CENTER);
+    title_hbox->set_cross_alignment(Widget::CENTER);
     vbox->add_child(move(title_hbox));
 
     desc_sw = make_shared<Switcher>();
@@ -1224,10 +1221,8 @@ void describe_god(god_type which_god)
     build_partial_god_ui(which_god, popup, desc_sw, more_sw);
 
     bool done = false;
-    popup->on(Widget::slots.event, [&](wm_event ev) {
-        if (ev.type != WME_KEYDOWN)
-            return false;
-        int key = ev.key.keysym.sym;
+    popup->on_keydown_event([&](const KeyEvent& ev) {
+        const auto key = ev.key();
         if (key == '!' || key == CK_MOUSE_CMD || key == '^')
         {
             int n = (desc_sw->current() + 1) % desc_sw->num_children();
@@ -1322,10 +1317,8 @@ bool describe_god_with_join(god_type which_god)
     bool done = false, join = false;
 
     // The join-god UI state machine transition function
-    popup->on(Widget::slots.event, [&](wm_event ev) {
-        if (ev.type != WME_KEYDOWN)
-            return false;
-        int keyin = ev.key.keysym.sym;
+    popup->on_keydown_event([&](const KeyEvent& ev) {
+        const auto keyin = ev.key();
 
         // Always handle escape and pane-switching keys the same way
         if (keyin == CK_ESCAPE)
@@ -1350,6 +1343,7 @@ bool describe_god_with_join(god_type which_god)
         }
 
         // Next, allow child widgets to handle scrolling keys
+        // NOTE: these key exceptions are also specified in ui-layouts.js
         if (keyin != ' ' && keyin != CK_ENTER)
         if (desc_sw->current_widget()->on_event(ev))
             return true;

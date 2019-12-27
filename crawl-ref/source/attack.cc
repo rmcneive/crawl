@@ -33,7 +33,6 @@
 #include "mon-behv.h"
 #include "mon-clone.h"
 #include "mon-death.h"
-#include "mon-poly.h"
 #include "nearby-danger.h"
 #include "pronoun-type.h"
 #include "religion.h"
@@ -610,8 +609,10 @@ static const vector<chaos_effect> chaos_effects = {
             if (!clone)
                 return false;
 
-            const bool obvious_effect
-                = you.can_see(defender) && you.can_see(*clone);
+            const bool obvious_effect = you.can_see(defender) && you.can_see(*clone);
+
+            if (one_chance_in(3))
+                clone->attitude = coinflip() ? ATT_FRIENDLY : ATT_NEUTRAL;
 
             // The player shouldn't get new permanent followers from cloning.
             if (clone->attitude == ATT_FRIENDLY && !clone->is_summoned())
@@ -654,27 +655,6 @@ static const vector<chaos_effect> chaos_effects = {
         },
     },
     {
-        "miscast", 20, nullptr, BEAM_NONE, [](attack &attack) {
-
-            const int HD = attack.defender->get_hit_dice();
-
-            // At level == 27 there's a 13.9% chance of a level 3 miscast.
-            const int level0_chance = HD;
-            const int level1_chance = max(0, HD - 7);
-            const int level2_chance = max(0, HD - 12);
-            const int level3_chance = max(0, HD - 17);
-
-            attack.miscast_level  = random_choose_weighted(level0_chance, 0,
-                                                           level1_chance, 1,
-                                                           level2_chance, 2,
-                                                           level3_chance, 3);
-            attack.miscast_type   = spschool::random;
-            attack.miscast_target = attack.defender;
-
-            return false;
-        },
-    },
-    {
         "rage", 5, [](const actor &defender) {
             return defender.can_go_berserk();
         }, BEAM_NONE, [](attack &attack) {
@@ -683,6 +663,8 @@ static const vector<chaos_effect> chaos_effects = {
         },
     },
     { "hasting", 10, _is_chaos_slowable, BEAM_HASTE },
+    { "mighting", 10, nullptr, BEAM_MIGHT },
+    { "agilitying", 10, nullptr, BEAM_AGILITY },
     { "invisible", 10, nullptr, BEAM_INVISIBILITY, },
     { "slowing", 10, _is_chaos_slowable, BEAM_SLOW },
     {
@@ -1281,7 +1263,7 @@ int attack::calc_damage()
         damage_max += attk_damage;
         damage     += 1 + random2(attk_damage);
 
-        damage = apply_damage_modifiers(damage, damage_max);
+        damage = apply_damage_modifiers(damage);
 
         set_attack_verb(damage);
         return apply_defender_ac(damage, damage_max);
@@ -1622,7 +1604,7 @@ bool attack::apply_damage_brand(const char *what)
         }
 
         if (!x_chance_in_y(melee_confuse_chance(defender->get_hit_dice()), 100)
-            || defender->as_monster()->check_clarity(false))
+            || defender->as_monster()->check_clarity())
         {
             break;
         }

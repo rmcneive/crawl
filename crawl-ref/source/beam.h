@@ -232,8 +232,7 @@ private:
     void emit_message(const char* msg);
 
     int apply_AC(const actor* victim, int hurted);
-    bool determine_damage(monster* mon, int& preac, int& postac, int& final,
-                          vector<string> &messages);
+    bool determine_damage(monster* mon, int& preac, int& postac, int& final);
 
     // Functions which handle actually affecting things. They all
     // operate on the beam's current position (i.e., whatever pos()
@@ -322,8 +321,6 @@ bool curare_actor(actor* source, actor* target, int levels, string name,
 int silver_damages_victim(actor* victim, int damage, string &dmg_msg);
 void fire_tracer(const monster* mons, bolt &pbolt,
                   bool explode_only = false, bool explosion_hole = false);
-bool imb_can_splash(coord_def origin, coord_def center,
-                    vector<coord_def> path_taken, coord_def target);
 spret zapping(zap_type ztype, int power, bolt &pbolt,
                    bool needs_tracer = false, const char* msg = nullptr,
                    bool fail = false);

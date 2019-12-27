@@ -92,8 +92,8 @@ bool player::move_to_pos(const coord_def &c, bool clear_net, bool /*force*/)
 }
 
 void player::apply_location_effects(const coord_def &oldpos,
-                                    killer_type killer,
-                                    int killernum)
+                                    killer_type /*killer*/,
+                                    int /*killernum*/)
 {
     moveto_location_effects(env.grid(oldpos));
 }
@@ -800,11 +800,6 @@ bool player::can_go_berserk(bool intentional, bool potion, bool quiet,
 bool player::berserk() const
 {
     return duration[DUR_BERSERK];
-}
-
-bool player::can_cling_to_walls() const
-{
-    return false;
 }
 
 bool player::antimagic_susceptible() const

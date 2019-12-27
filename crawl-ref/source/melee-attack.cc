@@ -16,10 +16,8 @@
 #include "art-enum.h"
 #include "attitude-change.h"
 #include "bloodspatter.h"
-#include "butcher.h"
 #include "chardump.h"
 #include "cloud.h"
-#include "coordit.h"
 #include "delay.h"
 #include "english.h"
 #include "env.h"
@@ -33,15 +31,12 @@
 #include "item-prop.h"
 #include "mapdef.h"
 #include "message.h"
-#include "misc.h"
 #include "mon-behv.h"
 #include "mon-poly.h"
 #include "mon-tentacle.h"
-#include "prompt.h"
 #include "religion.h"
 #include "shout.h"
 #include "spl-damage.h"
-#include "spl-summoning.h"
 #include "state.h"
 #include "stepdown.h"
 #include "stringutil.h"
@@ -68,7 +63,7 @@
 */
 melee_attack::melee_attack(actor *attk, actor *defn,
                            int attack_num, int effective_attack_num,
-                           bool is_cleaving, coord_def attack_pos)
+                           bool is_cleaving)
     :  // Call attack's constructor
     ::attack(attk, defn),
 
@@ -132,13 +127,13 @@ bool melee_attack::handle_phase_attempted()
                  || is_unrandom_artefact(*weapon, UNRAND_SPELLBINDER))
                  && you.can_see(*defender))
         {
-            targeter_los hitfunc(&you, LOS_NO_TRANS);
+            targeter_radius hitfunc(&you, LOS_NO_TRANS);
 
             if (stop_attack_prompt(hitfunc, "attack",
                                    [](const actor *act)
                                    {
                                        return !(you.deity() == GOD_FEDHAS
-                                       && fedhas_protects(*act->as_monster()));
+                                       && fedhas_protects(act->as_monster()));
                                    }, nullptr, defender->as_monster()))
             {
                 cancel_attack = true;
@@ -148,7 +143,7 @@ bool melee_attack::handle_phase_attempted()
         else if (weapon && is_unrandom_artefact(*weapon, UNRAND_TORMENT)
                  && you.can_see(*defender))
         {
-            targeter_los hitfunc(&you, LOS_NO_TRANS);
+            targeter_radius hitfunc(&you, LOS_NO_TRANS);
 
             if (stop_attack_prompt(hitfunc, "attack",
                                    [] (const actor *m)
@@ -1332,7 +1327,7 @@ bool melee_attack::player_aux_unarmed()
         if (atk == UNAT_CONSTRICT && !attacker->can_constrict(defender, true))
             continue;
 
-        to_hit = random2(calc_your_to_hit_unarmed(atk));
+        to_hit = random2(calc_your_to_hit_unarmed());
 
         handle_noise(defender->pos());
         alert_nearby_monsters();
@@ -1945,9 +1940,7 @@ bool melee_attack::consider_decapitation(int dam, int damage_type)
 {
     const int dam_type = (damage_type != -1) ? damage_type :
                                                attacker->damage_type();
-    const brand_type wpn_brand = attacker->damage_brand();
-
-    if (!attack_chops_heads(dam, dam_type, wpn_brand))
+    if (!attack_chops_heads(dam, dam_type))
         return false;
 
     decapitate(dam_type);
@@ -1963,7 +1956,7 @@ bool melee_attack::consider_decapitation(int dam, int damage_type)
     const int limit = defender->type == MONS_LERNAEAN_HYDRA ? 27
                                                             : MAX_HYDRA_HEADS;
 
-    if (wpn_brand == SPWPN_FLAMING)
+    if (attacker->damage_brand() == SPWPN_FLAMING)
     {
         if (defender_visible)
             mpr("The flame cauterises the wound!");
@@ -2009,7 +2002,7 @@ static bool actor_can_lose_heads(const actor* defender)
  * @param wpn_brand     The brand_type of the attack.
  * @return              Whether the attack will chop off a head.
  */
-bool melee_attack::attack_chops_heads(int dam, int dam_type, int wpn_brand)
+bool melee_attack::attack_chops_heads(int dam, int dam_type)
 {
     // hydras and hydra-like things only.
     if (!actor_can_lose_heads(defender))
@@ -3116,7 +3109,7 @@ void melee_attack::mons_do_eyeball_confusion()
             mprf("The eyeballs on your body gaze at %s.",
                  mon->name(DESC_THE).c_str());
 
-            if (!mon->check_clarity(false))
+            if (!mon->check_clarity())
             {
                 mon->add_ench(mon_enchant(ENCH_CONFUSION, 0, &you,
                                           30 + random2(100)));
@@ -3323,6 +3316,9 @@ bool melee_attack::do_knockback(bool trample)
     if (defender->is_stationary())
         return false; // don't even print a message
 
+    if (attacker->cannot_move())
+        return false;
+
     const int size_diff =
         attacker->body_size(PSIZE_BODY) - defender->body_size(PSIZE_BODY);
     const coord_def old_pos = defender->pos();
@@ -3502,7 +3498,7 @@ bool melee_attack::_extra_aux_attack(unarmed_attack_type atk)
 // to-hit method
 // Returns the to-hit for your extra unarmed attacks.
 // DOES NOT do the final roll (i.e., random2(your_to_hit)).
-int melee_attack::calc_your_to_hit_unarmed(int uattack)
+int melee_attack::calc_your_to_hit_unarmed()
 {
     int your_to_hit;
 
@@ -3555,7 +3551,7 @@ int melee_attack::calc_mon_to_hit_base()
  * Add modifiers to the base damage.
  * Currently only relevant for monsters.
  */
-int melee_attack::apply_damage_modifiers(int damage, int damage_max)
+int melee_attack::apply_damage_modifiers(int damage)
 {
     ASSERT(attacker->is_monster());
     monster *as_mon = attacker->as_monster();

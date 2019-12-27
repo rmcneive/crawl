@@ -12,11 +12,9 @@
 
 #include "artefact.h"
 #include "art-enum.h"
-#include "cloud.h"
 #include "delay.h"
 #include "english.h"
 #include "env.h"
-#include "god-abil.h"
 #include "god-item.h"
 #include "god-passive.h" // passive_t::resist_polymorph
 #include "invent.h" // check_old_item_warning
@@ -509,7 +507,7 @@ public:
     /**
      * Get a message for transforming into this form.
      */
-    string transform_message(transformation previous_trans) const override
+    string transform_message(transformation /*previous_trans*/) const override
     {
         const bool singular = you.get_mutation_level(MUT_MISSING_HAND);
 
@@ -537,7 +535,7 @@ public:
     /**
      * Get the name displayed in the UI for the form's unarmed-combat 'weapon'.
      */
-    string get_uc_attack_name(string default_name) const override
+    string get_uc_attack_name(string /*default_name*/) const override
     {
         return "Blade " + blade_parts(true);
     }
@@ -587,7 +585,7 @@ public:
     /**
      * Get the name displayed in the UI for the form's unarmed-combat 'weapon'.
      */
-    string get_uc_attack_name(string default_name) const override
+    string get_uc_attack_name(string /*default_name*/) const override
     {
         if (you.has_usable_claws(true))
             return "Stone claws";
@@ -618,7 +616,7 @@ public:
     /**
      * Get the name displayed in the UI for the form's unarmed-combat 'weapon'.
      */
-    string get_uc_attack_name(string default_name) const override
+    string get_uc_attack_name(string /*default_name*/) const override
     {
         const bool singular = you.get_mutation_level(MUT_MISSING_HAND);
         return make_stringf("Ice fist%s", singular ? "" : "s");
@@ -702,7 +700,7 @@ public:
     /**
      * Get a message for transforming into this form.
      */
-    string transform_message(transformation previous_trans) const override
+    string transform_message(transformation /*previous_trans*/) const override
     {
         return "Your body is suffused with negative energy!";
     }
@@ -795,7 +793,7 @@ public:
     /**
      * Get a message for transforming into this form.
      */
-    string transform_message(transformation previous_trans) const override
+    string transform_message(transformation /*previous_trans*/) const override
     {
         // ATTR_APPENDAGE must be set earlier!
         switch (you.attribute[ATTR_APPENDAGE])
@@ -943,7 +941,7 @@ public:
     /**
      * Get the name displayed in the UI for the form's unarmed-combat 'weapon'.
      */
-    string get_uc_attack_name(string default_name) const override
+    string get_uc_attack_name(string /*default_name*/) const override
     {
         return make_stringf("Bite (x%d)", you.heads());
     }
