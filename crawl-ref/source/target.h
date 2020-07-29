@@ -37,7 +37,6 @@ public:
 
     virtual aff_type is_affected(coord_def loc) = 0;
     virtual bool can_affect_unseen();
-    virtual bool has_additional_sites(coord_def a);
     virtual bool affects_monster(const monster_info& mon);
 protected:
     bool anyone_there(coord_def loc);
@@ -217,7 +216,7 @@ public:
     bool set_aim(coord_def a) override;
     bool step_is_blocked;
     aff_type is_affected(coord_def loc) override;
-    bool has_additional_sites(coord_def a) override;
+    bool has_additional_sites(coord_def a);
     set<coord_def> additional_sites;
     coord_def landing_site;
 private:
@@ -249,7 +248,8 @@ private:
 class targeter_shotgun : public targeter
 {
 public:
-    targeter_shotgun(const actor* act, size_t beam_count, int r);
+    targeter_shotgun(const actor* act, size_t beam_count, int r,
+                     bool cloud = false);
     bool valid_aim(coord_def a) override;
     bool set_aim(coord_def a) override;
     aff_type is_affected(coord_def loc) override;
@@ -258,6 +258,7 @@ public:
 private:
     size_t num_beams;
     int range;
+    bool uses_clouds;
 };
 
 class targeter_monster_sequence : public targeter_beam
@@ -310,3 +311,18 @@ public:
 private:
     bool overgrow_affects_pos(const coord_def &p);
 };
+
+class targeter_charge : public targeter
+{
+public:
+    targeter_charge(const actor *act, int range);
+    bool valid_aim(coord_def a) override;
+    bool set_aim(coord_def a) override;
+    aff_type is_affected(coord_def loc) override;
+private:
+    int range;
+    vector<coord_def> path_taken; // Path the charge took.
+};
+
+string bad_charge_target(coord_def a);
+bool can_charge_through_mons(coord_def a);

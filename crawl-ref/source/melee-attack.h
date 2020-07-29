@@ -23,6 +23,8 @@ enum unarmed_attack_type
     NUM_UNARMED_ATTACKS,
 };
 
+const int UC_FORM_TO_HIT_BONUS = 5;
+
 class melee_attack : public attack
 {
 public:
@@ -33,6 +35,7 @@ public:
     list<actor*> cleave_targets;
     bool         cleaving;        // additional attack from cleaving
     bool         is_riposte;      // long blade retaliation attack
+    int          roll_dist;       // palentonga rolling charge distance
     wu_jian_attack_type wu_jian_attack;
     int wu_jian_number_of_targets;
     coord_def attack_position;
@@ -44,9 +47,8 @@ public:
 
     // Applies attack damage and other effects.
     bool attack();
-
-    // To-hit is a function of attacker/defender, inherited from attack
-    int calc_to_hit(bool random = true) override;
+    int calc_to_hit(bool random) override;
+    int post_roll_to_hit_modifiers(int mhit, bool random) override;
 
     static void chaos_affect_actor(actor *victim);
 
@@ -66,6 +68,7 @@ private:
     int calc_mon_to_hit_base() override;
     int apply_damage_modifiers(int damage) override;
     int calc_damage() override;
+    bool apply_damage_brand(const char *what = nullptr) override;
 
     /* Attack effects */
     void check_autoberserk();
@@ -134,7 +137,7 @@ private:
     bool player_monattk_hit_effects();
     void attacker_sustain_passive_damage();
     int  staff_damage(skill_type skill);
-    void apply_staff_damage();
+    bool apply_staff_damage();
     void player_stab_check() override;
     bool player_good_stab() override;
     void player_announce_aux_hit();

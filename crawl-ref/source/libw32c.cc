@@ -148,7 +148,7 @@ void writeChar(char32_t c)
         bFlush();
 
         // reposition
-        cgotoxy(1, cy+2);
+        gotoxy_sys(1, cy+2);
 
         return;
     }
@@ -469,7 +469,7 @@ void set_cursor_enabled(bool curstype)
     // now, if we just changed from NOCURSOR to CURSOR,
     // actually move screen cursor
     if (cursor_is_enabled)
-        cgotoxy(cx+1, cy+1);
+        gotoxy_sys(cx+1, cy+1);
 }
 
 // This will force the cursor down to the next line.
@@ -481,7 +481,7 @@ void clear_to_end_of_line()
         cprintf("%*s", cols - pos + 1, "");
 }
 
-void clrscr()
+void clrscr_sys()
 {
     int x,y;
     COORD source;
@@ -505,9 +505,6 @@ void clrscr()
     target.Bottom = screensize.Y - 1;
 
     WriteConsoleOutputW(outbuf, screen, screensize, source, &target);
-
-    // reset cursor to 1,1 for convenience
-    cgotoxy(1,1);
 }
 
 void gotoxy_sys(int x, int y)
@@ -657,7 +654,7 @@ static void cprintf_aux(const char *s)
     // early out -- not initted yet
     if (outbuf == nullptr)
     {
-        printf("%S", OUTW(s));
+        printf("%ls", OUTW(s));
         return;
     }
 
@@ -717,27 +714,6 @@ static int vk_tr[4][VKEY_MAPPINGS] = // virtual key, unmodified, shifted, contro
     { CK_CTRL_END, CK_CTRL_DOWN, CK_CTRL_PGDN, CK_CTRL_LEFT, CK_CTRL_CLEAR, CK_CTRL_RIGHT,
       CK_CTRL_HOME, CK_CTRL_UP, CK_CTRL_PGUP, CK_CTRL_INSERT, CK_CTRL_TAB },
 };
-
-static int ck_tr[] =
-{
-    'k', 'j', 'h', 'l', '0', 'y', 'b', '.', 'u', 'n', '0',
-    // 'b', 'j', 'n', 'h', '.', 'l', 'y', 'k', 'u', (autofight)
-    '8', '2', '4', '6', '0', '7', '1', '5', '9', '3', '0',
-    // '1', '2', '3', '4', '5', '6', '7', '8', '9', (non-move autofight)
-    11, 10, 8, 12, '0', 25, 2, 0, 21, 14, '0',
-    // 2, 10, 14, 8, 0, 12, 25, 11, 21,
-};
-
-static int key_to_command(int keyin)
-{
-    if (keyin >= CK_UP && keyin <= CK_CTRL_PGDN)
-        return ck_tr[ keyin - CK_UP ];
-
-    if (keyin == CK_DELETE)
-        return '.';
-
-    return keyin;
-}
 
 static int vk_translate(WORD VirtCode, WCHAR c, DWORD cKeys)
 {
@@ -806,11 +782,6 @@ static int vk_translate(WORD VirtCode, WCHAR c, DWORD cKeys)
     if (shftDown)
         return vk_tr[2][mkey];
     return vk_tr[1][mkey];
-}
-
-int m_getch()
-{
-    return getchk();
 }
 
 static int w32_proc_mouse_event(const MOUSE_EVENT_RECORD &mer)
@@ -917,12 +888,6 @@ int getch_ck()
     return key;
 }
 
-int getchk()
-{
-    int c = getch_ck();
-    return key_to_command(c);
-}
-
 bool kbhit()
 {
     if (crawl_state.seen_hups)
@@ -968,7 +933,6 @@ void puttext(int x1, int y1, const crawl_view_buffer &vbuf)
             cell++;
         }
     }
-    update_screen();
     textcolour(WHITE);
 }
 

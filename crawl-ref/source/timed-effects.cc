@@ -13,6 +13,7 @@
 #include "beam.h"
 #include "cloud.h"
 #include "coordit.h"
+#include "corpse.h"
 #include "database.h"
 #include "dgn-shoals.h"
 #include "dgn-event.h"
@@ -36,7 +37,6 @@
 #include "player.h"
 #include "player-stats.h"
 #include "random.h"
-#include "rot.h"
 #include "religion.h"
 #include "skills.h"
 #include "shout.h"
@@ -79,14 +79,10 @@ static void _random_hell_miscast()
         = random_choose_weighted(8, spschool::necromancy,
                                  4, spschool::summoning,
                                  2, spschool::conjuration,
-                                 1, spschool::charms,
-                                 1, spschool::hexes);
+                                 2, spschool::hexes);
 
-    const int pow = 4 + random2(6);
-    const int fail = random2avg(97, 3);
-    MiscastEffect(&you, nullptr, {miscast_source::hell_effect}, which_miscast,
-                  pow, fail,
-                  "the effects of Hell");
+    miscast_effect(you, nullptr, {miscast_source::hell_effect}, which_miscast,
+                   5, random2avg(40, 3), "the effects of Hell");
 }
 
 /// The thematically appropriate hell effects for a given hell branch.
@@ -150,10 +146,8 @@ static void _themed_hell_summon_or_miscast()
     }
     else
     {
-        const int pow = 4 + random2(6);
-        const int fail = random2avg(97, 3);
-        MiscastEffect(&you, nullptr, {miscast_source::hell_effect},
-                      spec->miscast_type, pow, fail,
+        miscast_effect(you, nullptr, {miscast_source::hell_effect},
+                      spec->miscast_type, 5, random2avg(40, 3),
                       "the effects of Hell");
     }
 }
@@ -433,7 +427,7 @@ struct timed_effect
 // to timed_effect_type in timef-effect-type.h!
 static struct timed_effect timed_effects[] =
 {
-    { rot_floor_items,               200,   200, true  },
+    { rot_corpses,               200,   200, true  },
     { _hell_effects,                 200,   600, false },
 #if TAG_MAJOR_VERSION == 34
     { nullptr,                         0,     0, false },
@@ -445,8 +439,8 @@ static struct timed_effect timed_effects[] =
     { handle_god_time,               100,   300, false },
 #if TAG_MAJOR_VERSION == 34
     { nullptr,                                0,     0, false },
+    { nullptr,            0,   0, false },
 #endif
-    { rot_inventory_food,            100,   300, false },
     { _wait_practice,                100,   300, false },
 #if TAG_MAJOR_VERSION == 34
     { nullptr,                         0,     0, false },
@@ -509,56 +503,6 @@ void handle_time()
                                timed_effects[i].max_time);
         }
     }
-}
-
-/**
- * Return the number of turns it takes for monsters to forget about the player
- * 50% of the time.
- *
- * @param   The intelligence of the monster.
- * @return  An average number of turns before the monster forgets.
- */
-static int _mon_forgetfulness_time(mon_intel_type intelligence)
-{
-    switch (intelligence)
-    {
-        case I_HUMAN:
-            return 600;
-        case I_ANIMAL:
-            return 300;
-        case I_BRAINLESS:
-            return 150;
-        default:
-            die("Invalid intelligence type!");
-    }
-}
-
-/**
- * Make monsters forget about the player after enough time passes off-level.
- *
- * @param mon           The monster in question.
- * @param mon_turns     Monster turns. (Turns * monster speed)
- * @return              Whether the monster forgot about the player.
- */
-static bool _monster_forget(monster* mon, int mon_turns)
-{
-    // After x turns, half of the monsters will have forgotten about the
-    // player. A given monster has a 95% chance of forgetting the player after
-    // 4*x turns.
-    const int forgetfulness_time = _mon_forgetfulness_time(mons_intel(*mon));
-    const int forget_chances = mon_turns / forgetfulness_time;
-    // n.b. this is an integer division, so if range < forgetfulness_time
-    // nothing happens
-
-    if (bernoulli(forget_chances, 0.5))
-    {
-        mon->behaviour = BEH_WANDER;
-        mon->foe = MHITNOT;
-        mon->target = random_in_bounds();
-        return true;
-    }
-
-    return false;
 }
 
 /**
@@ -671,15 +615,19 @@ static void _catchup_monster_moves(monster* mon, int turns)
         return;
     }
 
-    // Expire friendly summons
-    if (mon->friendly() && mon->is_summoned() && !mon->is_perm_summoned())
+    // Expire friendly summons and temporary allies
+    if (mon->friendly()
+        && (mon->is_summoned() || mon->has_ench(ENCH_FAKE_ABJURATION))
+        && !mon->is_perm_summoned())
     {
         // You might still see them disappear if you were quick
         if (turns > 2)
             monster_die(*mon, KILL_DISMISSED, NON_MONSTER);
         else
         {
-            mon_enchant abj  = mon->get_ench(ENCH_ABJ);
+            enchant_type abj_type = mon->has_ench(ENCH_ABJ) ? ENCH_ABJ
+                                    : ENCH_FAKE_ABJURATION;
+            mon_enchant abj  = mon->get_ench(abj_type);
             abj.duration = 0;
             mon->update_ench(abj);
         }
@@ -720,14 +668,10 @@ static void _catchup_monster_moves(monster* mon, int turns)
     if (mon_turns <= 0)
         return;
 
-
-    // did the monster forget about the player?
-    const bool forgot = _monster_forget(mon, mon_turns);
-
     // restore behaviour later if we start fleeing
     unwind_var<beh_type> saved_beh(mon->behaviour);
 
-    if (!forgot && mons_has_ranged_attack(*mon))
+    if (mons_has_ranged_attack(*mon))
     {
         // If we're doing short time movement and the monster has a
         // ranged attack (missile or spell), then the monster will
@@ -800,7 +744,6 @@ void monster::timeout_enchantments(int levels)
         case ENCH_FRIENDLY_BRIBED: case ENCH_CORROSION: case ENCH_GOLD_LUST:
         case ENCH_RESISTANCE: case ENCH_HEXED: case ENCH_IDEALISED:
         case ENCH_BOUND_SOUL: case ENCH_STILL_WINDS: case ENCH_RING_OF_THUNDER:
-        case ENCH_WHIRLWIND_PINNED:
             lose_ench_levels(entry.second, levels);
             break;
 
@@ -895,9 +838,10 @@ void update_level(int elapsedTime)
     dprf("turns: %d", turns);
 #endif
 
-    rot_floor_items(elapsedTime);
+    rot_corpses(elapsedTime);
     shoals_apply_tides(turns, true);
     timeout_tombs(turns);
+    timeout_terrain_changes(elapsedTime);
 
     if (env.sanctuary_time)
     {
@@ -1161,6 +1105,8 @@ void timeout_terrain_changes(int duration, bool force)
         return;
 
     int num_seen[NUM_TERRAIN_CHANGE_TYPES] = {0};
+    // n.b. unordered_set doesn't work here because pair isn't hashable
+    set<pair<coord_def, terrain_change_type>> revert;
 
     for (map_marker *mark : env.markers.get_all(MAT_TERRAIN_CHANGE))
     {
@@ -1195,10 +1141,13 @@ void timeout_terrain_changes(int duration, bool force)
         {
             if (you.see_cell(marker->pos))
                 num_seen[marker->change_type]++;
-            // will delete `marker`.
-            revert_terrain_change(marker->pos, marker->change_type);
+            revert.insert(pair<coord_def, terrain_change_type>(marker->pos,
+                                                        marker->change_type));
         }
     }
+    // finally, revert the changes and delete the markers
+    for (const auto &m_pos : revert)
+        revert_terrain_change(m_pos.first, m_pos.second);
 
     if (num_seen[TERRAIN_CHANGE_DOOR_SEAL] > 1)
         mpr("The runic seals fade away.");

@@ -19,7 +19,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
-#ifndef TARGET_COMPILER_VC
+#if defined(UNIX) || defined(TARGET_COMPILER_MINGW)
 #include <unistd.h>
 #endif
 
@@ -418,7 +418,7 @@ UIHiscoresMenu::UIHiscoresMenu()
 
 #ifdef USE_TILE
     auto tile = make_shared<Image>();
-    tile->set_tile(tile_def(TILEG_STARTUP_HIGH_SCORES, TEX_GUI));
+    tile->set_tile(tile_def(TILEG_STARTUP_HIGH_SCORES));
     title_hbox->add_child(move(tile));
 #endif
 
@@ -869,7 +869,8 @@ enum old_job_type
     OLD_JOB_JESTER       = -6,
     OLD_JOB_PRIEST       = -7,
     OLD_JOB_HEALER       = -8,
-    NUM_OLD_JOBS = -OLD_JOB_HEALER
+    OLD_JOB_SKALD        = -9,
+    NUM_OLD_JOBS = -OLD_JOB_SKALD
 };
 
 static const char* _job_name(int job)
@@ -892,6 +893,8 @@ static const char* _job_name(int job)
         return "Priest";
     case OLD_JOB_HEALER:
         return "Healer";
+    case OLD_JOB_SKALD:
+        return "Skald";
     }
 
     return get_job_name(static_cast<job_type>(job));
@@ -917,6 +920,8 @@ static const char* _job_abbrev(int job)
         return "Pr";
     case OLD_JOB_HEALER:
         return "He";
+    case OLD_JOB_SKALD:
+        return "Sk";
     }
 
     return get_job_abbrev(static_cast<job_type>(job));
@@ -1381,7 +1386,8 @@ void scorefile_entry::init_death_cause(int dam, mid_t dsrc,
         if (death || you.can_see(*mons))
             death_source_name = mons->full_name(desc);
 
-        if (mons_is_player_shadow(*mons))
+        // Some shadows have names
+        if (mons_is_player_shadow(*mons) && mons->mname.empty())
             death_source_name = "their own shadow"; // heh
 
         if (mons->mid == MID_YOU_FAULTLESS)

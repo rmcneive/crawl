@@ -9,10 +9,10 @@
 
 #include <algorithm>
 
-#include "butcher.h"
 #include "cloud.h"
 #include "coord.h"
 #include "coordit.h"
+#include "corpse.h"
 #include "directn.h"
 #include "english.h"
 #include "env.h"
@@ -187,6 +187,22 @@ spret cast_big_c(int pow, spell_type spl, const actor *caster, bolt &beam,
     return spret::success;
 }
 
+/*
+ * A cloud_func that places an individual cloud as part of a cloud area. This
+ * function is called by apply_area_cloud();
+ *
+ * @param where       The location of the cloud.
+ * @param pow         The spellpower of the spell placing the clouds, which
+ *                    determines how long the cloud will last.
+ * @param spread_rate How quickly the cloud spreads.
+ * @param ctype       The type of cloud to place.
+ * @param agent       Any agent that may have caused the cloud. If this is the
+ *                    player, god conducts are applied.
+ * @param excl_rad    How large of an exclusion radius to make around the
+ *                    cloud.
+ * @returns           The number of clouds made, which is always 1.
+ *
+*/
 static int _make_a_normal_cloud(coord_def where, int pow, int spread_rate,
                                 cloud_type ctype, const actor *agent,
                                 int excl_rad)
@@ -198,6 +214,20 @@ static int _make_a_normal_cloud(coord_def where, int pow, int spread_rate,
     return 1;
 }
 
+/*
+ * Make a large area of clouds centered on a given place. This never creates
+ * player exclusions.
+ *
+ * @param ctype       The type of cloud to place.
+ * @param agent       Any agent that may have caused the cloud. If this is the
+ *                    player, god conducts are applied.
+ * @param where       The location of the cloud.
+ * @param pow         The spellpower of the spell placing the clouds, which
+ *                    determines how long the cloud will last.
+ * @param size        How large a radius of clouds to place from the `where'
+ *                    argument.
+ * @param spread_rate How quickly the cloud spreads.
+*/
 void big_cloud(cloud_type cl_type, const actor *agent,
                const coord_def& where, int pow, int size, int spread_rate)
 {
@@ -206,41 +236,13 @@ void big_cloud(cloud_type cl_type, const actor *agent,
                      cl_type, agent, spread_rate, -1);
 }
 
-spret cast_ring_of_flames(int power, bool fail)
-{
-    fail_check();
-    you.increase_duration(DUR_FIRE_SHIELD,
-                          6 + (power / 10) + (random2(power) / 5), 50,
-                          "The air around you leaps into flame!");
-    manage_fire_shield();
-    return spret::success;
-}
-
-void manage_fire_shield()
-{
-    ASSERT(you.duration[DUR_FIRE_SHIELD]);
-
-    // Melt ice armour entirely.
-    maybe_melt_player_enchantments(BEAM_FIRE, 100);
-
-    // Remove fire clouds on top of you
-    if (cloud_at(you.pos()) && cloud_at(you.pos())->type == CLOUD_FIRE)
-        delete_cloud(you.pos());
-
-    // Place fire clouds all around you
-    for (adjacent_iterator ai(you.pos()); ai; ++ai)
-        if (!cell_is_solid(*ai) && !cloud_at(*ai))
-            place_cloud(CLOUD_FIRE, *ai, 1 + random2(6), &you);
-}
-
 spret cast_corpse_rot(bool fail)
 {
     fail_check();
-    corpse_rot(&you);
-    return spret::success;
+    return corpse_rot(&you);
 }
 
-void corpse_rot(actor* caster)
+spret corpse_rot(actor* caster)
 {
     // If there is no caster (god wrath), centre the effect on the player.
     const coord_def center = caster ? caster->pos() : you.pos();
@@ -286,8 +288,14 @@ void corpse_rot(actor* caster)
 
     if (saw_rot)
         mprf("You %s decay.", you.can_smell() ? "smell" : "sense");
-    else
-        canned_msg(MSG_NOTHING_HAPPENS);
+    else if (caster && caster->is_player())
+    {
+        // Abort the spell for players; monsters and wrath fail silently
+        mpr("There is nothing fresh enough to decay nearby.");
+        return spret::abort;
+    }
+
+    return spret::success;
 }
 
 void holy_flames(monster* caster, actor* defender)

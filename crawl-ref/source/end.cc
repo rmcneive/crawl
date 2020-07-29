@@ -32,10 +32,11 @@
 #include "startup.h"
 #include "state.h"
 #include "stringutil.h"
+#include "tilepick.h"
 #include "view.h"
 #include "xom.h"
 #include "ui.h"
-#include "tiledef-feat.h"
+#include "rltiles/tiledef-feat.h"
 
 #ifdef __ANDROID__
 #include <android/log.h>
@@ -98,13 +99,13 @@ bool fatal_error_notification(string error_msg)
     // don't try. On other builds, though, it's just probably early in the
     // initialisation process, and cio_init should be fairly safe.
 #ifndef USE_TILE_LOCAL
-    if (!ui::is_available() && !msgwin_errors_to_stderr())
+    if (!ui::is_available() && !msg::uses_stderr(MSGCH_ERROR))
         cio_init(); // this, however, should be fairly safe
 #endif
 
     mprf(MSGCH_ERROR, "%s", error_msg.c_str());
 
-    if (!ui::is_available() || msgwin_errors_to_stderr())
+    if (!ui::is_available() || msg::uses_stderr(MSGCH_ERROR))
         return false;
 
     // do the linebreak here so webtiles has it, but it's needed below as well
@@ -227,7 +228,8 @@ NORETURN void end(int exit_code, bool print_error, const char *format, ...)
 }
 
 // Delete save files on game end.
-static void _delete_files()
+// Non-static for catch2-tests.
+void delete_files()
 {
     crawl_state.need_save = false;
     you.save->unlink();
@@ -241,7 +243,7 @@ NORETURN void screen_end_game(string text)
     tiles.send_exit_reason("quit");
 #endif
     crawl_state.cancel_cmd_all();
-    _delete_files();
+    delete_files();
 
     if (!text.empty())
     {
@@ -335,7 +337,7 @@ NORETURN void end_game(scorefile_entry &se)
 
     identify_inventory();
 
-    _delete_files();
+    delete_files();
 
     // death message
     if (!non_death)
@@ -417,6 +419,7 @@ NORETURN void end_game(scorefile_entry &se)
 
         flush_prev_message();
         viewwindow(); // don't do for leaving/winning characters
+        update_screen();
 
         if (crawl_state.game_is_hints())
             hints_death_screen();
@@ -455,17 +458,16 @@ NORETURN void end_game(scorefile_entry &se)
 
     clua.save_persist();
 
-    // Prompt for saving macros.
-    if (crawl_state.unsaved_macros && yesno("Save macros?", true, 'n'))
+    if (crawl_state.unsaved_macros)
         macro_save();
 
     auto title_hbox = make_shared<Box>(Widget::HORZ);
 #ifdef USE_TILE
-    tile_def death_tile(TILEG_ERROR, TEX_GUI);
+    tile_def death_tile(TILEG_ERROR);
     if (death_type == KILLED_BY_LEAVING || death_type == KILLED_BY_WINNING)
-        death_tile = tile_def(TILE_DNGN_EXIT_DUNGEON, TEX_FEAT);
+        death_tile = tile_def(TILE_DNGN_EXIT_DUNGEON);
     else
-        death_tile = tile_def(TILE_DNGN_GRAVESTONE+1, TEX_FEAT);
+        death_tile = tile_def(TILE_DNGN_GRAVESTONE+1);
 
     auto tile = make_shared<Image>(death_tile);
     tile->set_margin_for_sdl(0, 10, 0, 0);
@@ -527,19 +529,16 @@ NORETURN void end_game(scorefile_entry &se)
     tiles.json_open_object();
     tiles.json_open_object("tile");
     tiles.json_write_int("t", death_tile.tile);
-    tiles.json_write_int("tex", death_tile.tex);
+    tiles.json_write_int("tex", get_tile_texture(death_tile.tile));
     tiles.json_close_object();
     tiles.json_write_string("title", goodbye_title);
     tiles.json_write_string("body", goodbye_msg
             + hiscores_print_list(11, SCORE_TERSE, hiscore_index, start));
     tiles.push_ui_layout("game-over", 0);
+    popup->on_layout_pop([](){ tiles.pop_ui_layout(); });
 #endif
 
         ui::run_layout(move(popup), done);
-
-#ifdef USE_TILE_WEB
-    tiles.pop_ui_layout();
-#endif
     }
 
 #ifdef USE_TILE_WEB

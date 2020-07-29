@@ -356,6 +356,7 @@ void lose_level()
     // In case of intrinsic ability changes.
     tiles.layout_statcol();
     redraw_screen();
+    update_screen();
 #endif
 
     xom_is_stimulated(200);
@@ -613,7 +614,7 @@ static void _powered_by_pain(int dam)
             break;
         case 3:
             mpr("You focus on the pain.");
-            potionlike_effect(POT_AGILITY, level * 20);
+            you.be_agile(level * 20);
             break;
         }
     }
@@ -783,7 +784,7 @@ void ouch(int dam, kill_method_type death_type, mid_t source, const char *aux,
 
     int drain_amount = 0;
 
-    // Multiply damage if amulet of harm is in play
+    // Multiply damage if scarf of harm is in play
     if (dam != INSTANT_DEATH)
         dam = _apply_extra_harm(dam, source);
 

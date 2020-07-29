@@ -43,7 +43,6 @@
 #include "random.h"
 #include "religion.h"
 #include "spl-damage.h"
-#include "spl-miscast.h"
 #include "spl-util.h"
 #include "state.h"
 #include "stringutil.h"
@@ -1010,8 +1009,12 @@ bool mon_special_ability(monster* mons)
 
         for (monster_near_iterator targ(mons, LOS_NO_TRANS); targ; ++targ)
         {
-            if (mons_aligned(mons, *targ) || grid_distance(mons->pos(), targ->pos()) > 2)
+            if (mons_aligned(mons, *targ) || mons_is_firewood(**targ)
+                || grid_distance(mons->pos(), targ->pos()) > 2
+                || !you.see_cell(targ->pos()))
+            {
                 continue;
+            }
 
             if (!cell_is_solid(targ->pos()))
             {
@@ -1038,8 +1041,12 @@ bool mon_special_ability(monster* mons)
 
         for (monster_near_iterator targ(mons, LOS_NO_TRANS); targ; ++targ)
         {
-            if (mons_aligned(mons, *targ) || grid_distance(mons->pos(), targ->pos()) > 1)
+            if (mons_aligned(mons, *targ) || mons_is_firewood(**targ)
+                || grid_distance(mons->pos(), targ->pos()) > 1
+                || !you.see_cell(targ->pos()))
+            {
                 continue;
+            }
 
             if (!cell_is_solid(targ->pos()))
             {

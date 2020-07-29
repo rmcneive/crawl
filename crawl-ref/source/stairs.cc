@@ -24,6 +24,7 @@
 #include "item-name.h"
 #include "items.h"
 #include "level-state-type.h"
+#include "losglobal.h"
 #include "mapmark.h"
 #include "message.h"
 #include "mon-death.h"
@@ -150,7 +151,7 @@ static bool _stair_moves_pre(dungeon_feature_type stair)
         return false;
 
     // Get feature name before sliding stair over.
-    string stair_str = feature_description_at(you.pos(), false, DESC_THE, false);
+    string stair_str = feature_description_at(you.pos(), false, DESC_THE);
 
     if (!slide_feature_over(you.pos()))
         return false;
@@ -314,7 +315,7 @@ static bool _check_stairs(const dungeon_feature_type ftype, bool going_up)
             if (ftype == DNGN_STONE_ARCH)
                 mpr("There is nothing on the other side of the stone arch.");
             else if (ftype == DNGN_ABANDONED_SHOP)
-                mpr("This shop appears to be closed.");
+                mpr("This shop has been abandoned, nothing of value remains.");
             else if (going_up)
                 mpr("You can't go up here!");
             else
@@ -376,7 +377,8 @@ static void _rune_effect(dungeon_feature_type ftype)
 
             mprf("You insert the %s rune into the lock.", rune_type_name(runes[2]));
 #ifdef USE_TILE_LOCAL
-            tiles.add_overlay(you.pos(), tileidx_zap(rune_colour(runes[2])));
+            view_add_tile_overlay(you.pos(), tileidx_zap(rune_colour(runes[2])));
+            viewwindow(false);
             update_screen();
 #else
             flash_view(UA_BRANCH_ENTRY, rune_colour(runes[2]));
@@ -387,6 +389,7 @@ static void _rune_effect(dungeon_feature_type ftype)
             mprf("You insert the %s rune into the lock.", rune_type_name(runes[1]));
             big_cloud(CLOUD_BLUE_SMOKE, &you, you.pos(), 20, 7 + random2(7));
             viewwindow();
+            update_screen();
             mpr("Heavy smoke blows from the lock!");
             // included in default force_more_message
         }
@@ -622,6 +625,7 @@ void floor_transition(dungeon_feature_type how,
     you.stop_being_constricted();
     you.clear_beholders();
     you.clear_fearmongers();
+    dec_frozen_ramparts(you.duration[DUR_FROZEN_RAMPARTS]);
 
     if (!forced)
     {
@@ -733,6 +737,7 @@ void floor_transition(dungeon_feature_type how,
     case BRANCH_ABYSS:
         // There are no abyssal stairs that go up, so this whole case is only
         // when going down.
+        you.props.erase(ABYSS_SPAWNED_XP_EXIT_KEY);
         if (old_level.branch == BRANCH_ABYSS)
         {
             mprf(MSGCH_BANISHMENT, "You plunge deeper into the Abyss.");
@@ -753,7 +758,6 @@ void floor_transition(dungeon_feature_type how,
         }
 
         you.props[ABYSS_STAIR_XP_KEY] = EXIT_XP_COST;
-        you.props.erase(ABYSS_SPAWNED_XP_EXIT_KEY);
 
         // Re-entering the Abyss halves accumulated speed.
         you.abyss_speed /= 2;
@@ -856,6 +860,7 @@ void floor_transition(dungeon_feature_type how,
     env.map_seen.set(you.pos());
 
     viewwindow();
+    update_screen();
 
     // There's probably a reason for this. I don't know it.
     if (going_up)
@@ -927,6 +932,8 @@ level_id stair_destination(dungeon_feature_type feat, const string &dst,
 #if TAG_MAJOR_VERSION == 34
     if (feat == DNGN_ESCAPE_HATCH_UP && player_in_branch(BRANCH_LABYRINTH))
         feat = DNGN_EXIT_LABYRINTH;
+#else
+    UNUSED(dst); // see below in the switch
 #endif
     if (branches[you.where_are_you].exit_stairs == feat
         && parent_branch(you.where_are_you) < NUM_BRANCHES
@@ -1087,9 +1094,35 @@ static void _update_level_state()
                   + mon_it->get_ench(ENCH_AWAKEN_FOREST).duration;
         }
     }
+
+#if TAG_MAJOR_VERSION == 34
+    const bool have_ramparts = you.duration[DUR_FROZEN_RAMPARTS];
+    const auto &ramparts_pos = you.props[FROZEN_RAMPARTS_KEY].get_coord();
+#endif
     for (rectangle_iterator ri(0); ri; ++ri)
+    {
         if (grd(*ri) == DNGN_SLIMY_WALL)
             env.level_state |= LSTATE_SLIMY_WALL;
+
+        if (is_icecovered(*ri))
+#if TAG_MAJOR_VERSION == 34
+        {
+            // Buggy versions of Frozen Ramparts didn't properly clear
+            // FPROP_ICY from walls in some cases, so we detect invalid walls
+            // and remove the flag.
+            if (have_ramparts
+                && ramparts_pos.distance_from(*ri) <= 3
+                && cell_see_cell(*ri, ramparts_pos, LOS_NO_TRANS))
+            {
+#endif
+            env.level_state |= LSTATE_ICY_WALL;
+#if TAG_MAJOR_VERSION == 34
+            }
+            else
+                env.pgrid(*ri) &= ~FPROP_ICY;
+        }
+#endif
+    }
 
     env.orb_pos = coord_def();
     if (item_def* orb = find_floor_item(OBJ_ORBS, ORB_ZOT))

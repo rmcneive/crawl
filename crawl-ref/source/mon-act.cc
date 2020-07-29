@@ -15,6 +15,7 @@
 #include "cloud.h"
 #include "colour.h"
 #include "coordit.h"
+#include "corpse.h"
 #include "dbg-scan.h"
 #include "delay.h"
 #include "directn.h" // feature_description_at
@@ -50,7 +51,6 @@
 #include "mon-tentacle.h"
 #include "nearby-danger.h"
 #include "religion.h"
-#include "rot.h"
 #include "shout.h"
 #include "spl-book.h"
 #include "spl-clouds.h"
@@ -293,7 +293,7 @@ static bool _unfriendly_or_impaired(const monster& mon)
 // monster of the same alignment as the given monster that happens to
 // have a ranged attack. If this is true for the first monster encountered,
 // returns true. Otherwise returns false.
-static bool _ranged_allied_monster_in_dir(monster* mon, coord_def p)
+static bool _ranged_ally_in_dir(monster* mon, coord_def p)
 {
     coord_def pos = mon->pos();
 
@@ -303,7 +303,7 @@ static bool _ranged_allied_monster_in_dir(monster* mon, coord_def p)
         if (!in_bounds(pos))
             break;
 
-        const monster* ally = monster_at(pos);
+        const actor* ally = actor_at(pos);
         if (ally == nullptr)
             continue;
 
@@ -317,8 +317,14 @@ static bool _ranged_allied_monster_in_dir(monster* mon, coord_def p)
                 return false;
             }
 
-            if (mons_has_ranged_attack(*ally))
-                return true;
+            // XXX: Sometimes the player wants llies in front of them to stay
+            // out of LOF. However use of allies for cover is extremely common,
+            // so it doesn't work well to always have allies move out of player
+            // LOF. Until a better interface or method can be found to handle
+            // both cases, have allies move out of the way only for other
+            // monsters.
+            if (ally->is_monster())
+                return mons_has_ranged_attack(*(ally->as_monster()));
         }
         break;
     }
@@ -620,25 +626,21 @@ static void _handle_movement(monster* mons)
         _fill_good_move(mons, &good_move);
         good_move_filled = true;
         // If the monster is moving parallel to the x or y axis, check
+        // if there are other unblocked grids adjacent to the target and
         // whether
         //
-        // a) the neighbouring grids are blocked
-        // b) there are other unblocked grids adjacent to the target
-        // c) there's at least one allied monster waiting behind us.
-        //
-        // (For really smart monsters, also check whether there's a
-        // monster farther back in the corridor that has some kind of
-        // ranged attack.)
+        // a) the neighbouring grids are blocked and an ally is behind us,
+        // or
+        // b) we're intelligent and blocking a ranged attack
         if (mmov.y == 0)
         {
-            if (!good_move[1][0] && !good_move[1][2]
-                && (good_move[mmov.x+1][0] || good_move[mmov.x+1][2])
+            if ((good_move[mmov.x+1][0] || good_move[mmov.x+1][2])
                 && (_allied_monster_at(mons, coord_def(-mmov.x, -1),
                                        coord_def(-mmov.x, 0),
                                        coord_def(-mmov.x, 1))
-                    || !mons->wont_attack()
-                       && _ranged_allied_monster_in_dir(mons,
-                                                        coord_def(-mmov.x, 0))))
+                       && !good_move[1][0] && !good_move[1][2]
+                    || mons_intel(*mons) >= I_HUMAN
+                       && _ranged_ally_in_dir(mons, coord_def(-mmov.x, 0))))
             {
                 if (good_move[mmov.x+1][0])
                     mmov.y = -1;
@@ -648,14 +650,13 @@ static void _handle_movement(monster* mons)
         }
         else if (mmov.x == 0)
         {
-            if (!good_move[0][1] && !good_move[2][1]
-                && (good_move[0][mmov.y+1] || good_move[2][mmov.y+1])
+            if ((good_move[0][mmov.y+1] || good_move[2][mmov.y+1])
                 && (_allied_monster_at(mons, coord_def(-1, -mmov.y),
                                        coord_def(0, -mmov.y),
                                        coord_def(1, -mmov.y))
-                    || !mons->wont_attack()
-                       && _ranged_allied_monster_in_dir(mons,
-                                                        coord_def(0, -mmov.y))))
+                       && !good_move[0][1] && !good_move[2][1]
+                    || mons_intel(*mons) >= I_HUMAN
+                       && _ranged_ally_in_dir(mons, coord_def(0, -mmov.y))))
             {
                 if (good_move[0][mmov.y+1])
                     mmov.x = -1;
@@ -668,23 +669,21 @@ static void _handle_movement(monster* mons)
             if (good_move[mmov.x+1][1])
             {
                 if (!good_move[1][mmov.y+1]
-                    && (_allied_monster_at(mons, coord_def(-mmov.x, -1),
+                       && _allied_monster_at(mons, coord_def(-mmov.x, -1),
                                            coord_def(-mmov.x, 0),
                                            coord_def(-mmov.x, 1))
-                        ||  !mons->wont_attack()
-                           && _ranged_allied_monster_in_dir(mons,
-                                                coord_def(-mmov.x, -mmov.y))))
+                    || mons_intel(*mons) >= I_HUMAN
+                       && _ranged_ally_in_dir(mons, coord_def(-mmov.x, -mmov.y)))
                 {
                     mmov.y = 0;
                 }
             }
             else if (good_move[1][mmov.y+1]
-                     && (_allied_monster_at(mons, coord_def(-1, -mmov.y),
+                     && _allied_monster_at(mons, coord_def(-1, -mmov.y),
                                             coord_def(0, -mmov.y),
                                             coord_def(1, -mmov.y))
-                         || !mons->wont_attack()
-                            && _ranged_allied_monster_in_dir(mons,
-                                                coord_def(-mmov.x, -mmov.y))))
+                         || mons_intel(*mons) >= I_HUMAN
+                            && _ranged_ally_in_dir(mons, coord_def(-mmov.x, -mmov.y)))
             {
                 mmov.x = 0;
             }
@@ -799,10 +798,6 @@ static bool _handle_potion(monster& mons)
         // Drink the potion, and identify it.
         if (mons.drink_potion_effect(ptype) && was_visible)
             set_ident_type(OBJ_POTIONS, ptype, true);
-
-        // Remove the oldest blood timer.
-        if (is_blood_potion(*potion))
-            remove_oldest_perishable_item(*potion);
 
         // Remove it from inventory.
         if (dec_mitm_item_quantity(potion->index(), 1))
@@ -1141,10 +1136,6 @@ static bool _handle_wand(monster& mons)
     const wand_type kind = (wand_type)wand->sub_type;
     switch (kind)
     {
-    case WAND_SCATTERSHOT:
-        should_fire = scattershot_tracer(&mons, power, beem.target);
-        break;
-
     case WAND_CLOUDS:
         should_fire = mons_should_cloud_cone(&mons, power, beem.target);
         break;
@@ -1652,6 +1643,13 @@ void handle_monster_move(monster* mons)
 
     if (env.level_state & LSTATE_SLIMY_WALL)
         slime_wall_damage(mons, speed_to_duration(mons->speed));
+
+    if (!mons->alive())
+        return;
+
+    if (env.level_state & LSTATE_ICY_WALL)
+        ice_wall_damage(*mons, speed_to_duration(mons->speed));
+
     if (!mons->alive())
         return;
 
@@ -1840,6 +1838,8 @@ void handle_monster_move(monster* mons)
             }
         }
 
+        const bool prefer_ranged = mons_class_flag(mons->type, M_PREFER_RANGED);
+
         if (friendly_or_near)
         {
             if (_handle_potion(*mons))
@@ -1872,7 +1872,9 @@ void handle_monster_move(monster* mons)
                 return;
             }
 
-            if (_handle_reaching(mons))
+            // we want to let M_PREFER_RANGED monsters try their ranged attack
+            // first, even if within reaching range.
+            if (!prefer_ranged && _handle_reaching(mons))
             {
                 DEBUG_ENERGY_USE("_handle_reaching()");
                 return;
@@ -1883,6 +1885,12 @@ void handle_monster_move(monster* mons)
         if (handle_throw(mons, beem, false, false))
         {
             DEBUG_ENERGY_USE("_handle_throw()");
+            return;
+        }
+
+        if (friendly_or_near && prefer_ranged && _handle_reaching(mons))
+        {
+            DEBUG_ENERGY_USE("_handle_reaching()");
             return;
         }
     }
@@ -2210,7 +2218,8 @@ static void _torpor_snail_slow(monster* mons)
     {
         monster *m = *ri;
         if (m && !mons_aligned(mons, m) && !m->stasis()
-            && !m->is_stationary() && !is_sanctuary(m->pos()))
+            && !mons_is_conjured(m->type) && !m->is_stationary()
+            && !is_sanctuary(m->pos()))
         {
             m->add_ench(mon_enchant(ENCH_SLOW, 0, mons, 1));
             m->props[TORPOR_SLOWED_KEY] = true;
@@ -2256,7 +2265,7 @@ static void _post_monster_move(monster* mons)
                 if (grd(*ai) != DNGN_SHALLOW_WATER && grd(*ai) != DNGN_FLOOR
                     && you.see_cell(*ai))
                 {
-                    mprf("%s watery aura covers %s",
+                    mprf("%s watery aura covers %s.",
                          apostrophise(mons->name(DESC_THE)).c_str(),
                          feature_description_at(*ai, false, DESC_THE).c_str());
                 }
@@ -2294,6 +2303,15 @@ static void _post_monster_move(monster* mons)
             {
                 place_cloud(ctype, *ai, 2 + random2(3), mons);
             }
+    }
+
+
+    const item_def * weapon = mons->mslot_item(MSLOT_WEAPON);
+    if (weapon && get_weapon_brand(*weapon) == SPWPN_SPECTRAL
+        && !mons_is_avatar(mons->type)
+        && !find_spectral_weapon(mons))
+    {
+        cast_spectral_weapon(mons, mons->get_experience_level() * 4, mons->god);
     }
 
     if (mons->type != MONS_NO_MONSTER && mons->hit_points < 1)
@@ -2558,9 +2576,6 @@ static bool _monster_eat_item(monster* mons)
 
         if (quant >= si->quantity)
             item_was_destroyed(*si);
-        else if (is_perishable_stack(*si))
-            for (int i = 0; i < quant; ++i)
-                remove_oldest_perishable_item(*si);
         dec_mitm_item_quantity(si.index(), quant);
     }
 
@@ -2682,6 +2697,7 @@ static void _mons_open_door(monster& mons, const coord_def &pos)
     if (was_seen)
     {
         viewwindow();
+        update_screen();
 
         string open_str = "opens the ";
         open_str += adj;
@@ -2752,7 +2768,7 @@ static bool _mons_can_displace(const monster* mpusher,
 
     // Foxfires can always be pushed
     if (mpushee->type == MONS_FOXFIRE)
-        return mpusher->type != MONS_FOXFIRE; // Except by each other
+        return !mons_aligned(mpushee, mpusher); // But allies won't do it
 
     if (!mpushee->has_action_energy()
         && !_same_tentacle_parts(mpusher, mpushee))
@@ -2803,19 +2819,36 @@ static bool _mons_can_displace(const monster* mpusher,
 }
 
 // Returns true if the monster should try to avoid that position
-// because of taking damage from slime walls.
-static bool _check_slime_walls(const monster *mon,
-                               const coord_def &targ)
+// because of taking damage from damaging walls.
+static bool _check_damaging_walls(const monster *mon,
+                                  const coord_def &targ)
 {
-    if (actor_slime_wall_immune(mon) || mons_intel(*mon) <= I_BRAINLESS)
-        return false;
-    const int target_count = count_adjacent_slime_walls(targ);
-    // Entirely safe.
-    if (!target_count)
+    const bool have_slimy = env.level_state & LSTATE_SLIMY_WALL;
+    const bool have_icy   = env.level_state & LSTATE_ICY_WALL;
+
+    if (!have_slimy && !have_icy)
         return false;
 
-    const int current_count = count_adjacent_slime_walls(mon->pos());
-    if (target_count <= current_count)
+    if (!have_icy && actor_slime_wall_immune(mon)
+        || mons_intel(*mon) <= I_BRAINLESS)
+    {
+        return false;
+    }
+
+    // Monsters are only ever affected by one wall at a time, so we don't care
+    // about wall counts past 1.
+    const bool target_damages = count_adjacent_slime_walls(targ)
+        + count_adjacent_icy_walls(targ);
+
+    // Entirely safe.
+    if (!target_damages)
+        return false;
+
+    const bool current_damages = count_adjacent_slime_walls(mon->pos())
+        + count_adjacent_icy_walls(mon->pos());
+
+    // We're already taking damage, so moving into damage is fine.
+    if (current_damages)
         return false;
 
     // The monster needs to have a purpose to risk taking damage.
@@ -2826,6 +2859,7 @@ static bool _check_slime_walls(const monster *mon,
     // onto more dangerous squares.
     return mon->hit_points < mon->max_hit_points / 2;
 }
+
 // Check whether a monster can move to given square (described by its relative
 // coordinates to the current monster position). just_check is true only for
 // calls from is_trap_safe when checking the surrounding squares of a trap.
@@ -2866,7 +2900,7 @@ bool mon_can_move_to_pos(const monster* mons, const coord_def& delta,
     if (mons_avoids_cloud(mons, targ))
         return false;
 
-    if (env.level_state & LSTATE_SLIMY_WALL && _check_slime_walls(mons, targ))
+    if (_check_damaging_walls(mons, targ))
         return false;
 
     const bool digs = _mons_can_cast_dig(mons, false)
@@ -3258,6 +3292,7 @@ static bool _do_move_monster(monster& mons, const coord_def& delta)
             if (you.see_cell(f))
             {
                 viewwindow();
+                update_screen();
 
                 if (!you.can_see(mons))
                 {
@@ -3283,6 +3318,7 @@ static bool _do_move_monster(monster& mons, const coord_def& delta)
             if (you.see_cell(f))
             {
                 viewwindow();
+                update_screen();
 
                 if (!you.can_see(mons))
                 {

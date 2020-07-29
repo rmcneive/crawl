@@ -282,8 +282,8 @@ static void _translate_event(const SDL_MouseMotionEvent &sdl_event,
     tile_event.held   = wm_mouse_event::NONE;
     tile_event.event  = wm_mouse_event::MOVE;
     tile_event.button = wm_mouse_event::NONE;
-    tile_event.px     = sdl_event.x;
-    tile_event.py     = sdl_event.y;
+    tile_event.px     = display_density.apply_game_scale(sdl_event.x);
+    tile_event.py     = display_density.apply_game_scale(sdl_event.y);
     tile_event.held   = wm->get_mouse_state(nullptr, nullptr);
     tile_event.mod    = wm->get_mod_state();
 
@@ -312,8 +312,8 @@ static void _translate_event(const SDL_MouseButtonEvent &sdl_event,
         tile_event.button = wm_mouse_event::NONE;
         break;
     }
-    tile_event.px = sdl_event.x;
-    tile_event.py = sdl_event.y;
+    tile_event.px = display_density.apply_game_scale(sdl_event.x);
+    tile_event.py = display_density.apply_game_scale(sdl_event.y);
     tile_event.held = wm->get_mouse_state(nullptr, nullptr);
     tile_event.mod = wm->get_mod_state();
 }
@@ -325,8 +325,8 @@ static void _translate_wheel_event(const SDL_MouseWheelEvent &sdl_event,
     tile_event.event = wm_mouse_event::WHEEL;
     tile_event.button = (sdl_event.y < 0) ? wm_mouse_event::SCROLL_DOWN
                                           : wm_mouse_event::SCROLL_UP;
-    tile_event.px = sdl_event.x;
-    tile_event.py = sdl_event.y;
+    tile_event.px = display_density.apply_game_scale(sdl_event.x);
+    tile_event.py = display_density.apply_game_scale(sdl_event.y);
 }
 
 SDLWrapper::SDLWrapper():
@@ -493,8 +493,8 @@ int SDLWrapper::init(coord_def *m_windowsz)
 
     int x, y;
     SDL_GetWindowSize(m_window, &x, &y);
-    m_windowsz->x = x;
-    m_windowsz->y = y;
+    m_windowsz->x = display_density.apply_game_scale(x);
+    m_windowsz->y = display_density.apply_game_scale(y);
     init_hidpi();
 #ifdef __ANDROID__
 # ifndef TOUCH_UI
@@ -516,14 +516,14 @@ int SDLWrapper::screen_width() const
 {
     int w, dummy;
     SDL_GetWindowSize(m_window, &w, &dummy);
-    return w;
+    return display_density.apply_game_scale(w);
 }
 
 int SDLWrapper::screen_height() const
 {
     int dummy, h;
     SDL_GetWindowSize(m_window, &dummy, &h);
-    return h;
+    return display_density.apply_game_scale(h);
 }
 
 int SDLWrapper::desktop_width() const
@@ -622,9 +622,11 @@ bool SDLWrapper::init_hidpi()
 {
     coord_def windowsz;
     coord_def drawablesz;
+    // window size is in logical pixels
     SDL_GetWindowSize(m_window, &(windowsz.x), &(windowsz.y));
+    // drawable size is in device pixels
     SDL_GL_GetDrawableSize(m_window, &(drawablesz.x), &(drawablesz.y));
-    return display_density.update(drawablesz.x, windowsz.x);
+    return display_density.update(drawablesz.x, windowsz.x, Options.game_scale);
 }
 
 void SDLWrapper::resize(coord_def &m_windowsz)
@@ -721,6 +723,10 @@ void SDLWrapper::set_mouse_cursor(mouse_cursor_type type)
 unsigned short SDLWrapper::get_mouse_state(int *x, int *y) const
 {
     Uint32 state = SDL_GetMouseState(x, y);
+    if (x)
+        *x = display_density.apply_game_scale(*x);
+    if (y)
+        *y = display_density.apply_game_scale(*y);
     unsigned short ret = 0;
     if (state & SDL_BUTTON(SDL_BUTTON_LEFT))
         ret |= wm_mouse_event::LEFT;
@@ -928,10 +934,22 @@ int SDLWrapper::wait_event(wm_event *event, int timeout)
     return 1;
 }
 
+static unsigned int _timer_callback(unsigned int ticks, void *param)
+{
+    UNUSED(ticks);
+
+    SDL_Event event;
+    memset(&event, 0, sizeof(event));
+    event.type = SDL_USEREVENT;
+    event.user.data1 = param;
+    SDL_PushEvent(&event);
+    return 0;
+}
+
 unsigned int SDLWrapper::set_timer(unsigned int interval,
                                    wm_timer_callback callback)
 {
-    return SDL_AddTimer(interval, callback, nullptr);
+    return SDL_AddTimer(interval, _timer_callback, reinterpret_cast<void*>(callback));
 }
 
 void SDLWrapper::remove_timer(unsigned int& timer_id)
@@ -941,13 +959,6 @@ void SDLWrapper::remove_timer(unsigned int& timer_id)
         SDL_RemoveTimer(timer_id);
         timer_id = 0;
     }
-}
-
-int SDLWrapper::raise_custom_event()
-{
-    SDL_Event send_event;
-    send_event.type = SDL_USEREVENT;
-    return SDL_PushEvent(&send_event);
 }
 
 void SDLWrapper::swap_buffers()
@@ -960,12 +971,12 @@ void SDLWrapper::delay(unsigned int ms)
     SDL_Delay(ms);
 }
 
-unsigned int SDLWrapper::get_event_count(wm_event_type type)
+bool SDLWrapper::next_event_is(wm_event_type type)
 {
     // check for enqueued characters from a multi-char textinput event
     // count is floored to 1 for consistency with other event types
     if (type == WME_KEYDOWN && m_textinput_queue.size() > 0)
-        return 1;
+        return true;
 
     // Look for the presence of any keyboard events in the queue.
     Uint32 event;
@@ -1024,7 +1035,7 @@ unsigned int SDLWrapper::get_event_count(wm_event_type type)
         count += SDL_PeepEvents(&store, 1, SDL_PEEKEVENT, SDL_TEXTINPUT, SDL_TEXTINPUT);
     ASSERT(count >= 0);
 
-    return max(count, 0);
+    return count != 0;
 }
 
 void SDLWrapper::show_keyboard()

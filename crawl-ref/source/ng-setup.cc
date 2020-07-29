@@ -6,7 +6,6 @@
 #include "dungeon.h"
 #include "end.h"
 #include "files.h"
-#include "food.h"
 #include "god-companions.h"
 #include "hints.h"
 #include "invent.h"
@@ -105,9 +104,6 @@ item_def* newgame_make_item(object_class_type base,
     int slot;
     for (slot = 0; slot < ENDOFPACK; ++slot)
     {
-        if (base == OBJ_FOOD && slot == letter_to_index('e'))
-            continue;
-
         item_def& item = you.inv[slot];
         if (!item.defined())
             break;
@@ -135,7 +131,7 @@ item_def* newgame_make_item(object_class_type base,
         if (item.sub_type == ARM_HELMET || item.sub_type == ARM_HAT)
             item.sub_type = ARM_HAT;
         else if (item.sub_type == ARM_BUCKLER)
-            item.sub_type = ARM_SHIELD;
+            item.sub_type = ARM_KITE_SHIELD;
         else if (is_shield(item))
             item.sub_type = ARM_BUCKLER;
         else
@@ -146,7 +142,7 @@ item_def* newgame_make_item(object_class_type base,
     ASSERT(item.quantity == 1 || is_stackable_item(item));
 
     // If that didn't help, nothing will.
-    if (is_useless_item(item))
+    if (is_useless_item(item, false, true))
     {
         item = item_def();
         return nullptr;
@@ -164,8 +160,6 @@ item_def* newgame_make_item(object_class_type base,
     // You can get the books without the corresponding items as a wanderer.
     else if (item.base_type == OBJ_BOOKS && item.sub_type == BOOK_GEOMANCY)
         _autopickup_ammo(MI_STONE);
-    else if (item.base_type == OBJ_BOOKS && item.sub_type == BOOK_CHANGES)
-        _autopickup_ammo(MI_ARROW);
     // You probably want to pick up both.
     if (item.is_type(OBJ_MISSILES, MI_SLING_BULLET))
         _autopickup_ammo(MI_STONE);
@@ -253,6 +247,14 @@ void give_items_skills(const newgame_def& ng)
         }
         break;
 
+    case JOB_ARTIFICER:
+    {
+        if (species_apt(SK_ARMOUR) < species_apt(SK_DODGING))
+            you.skills[SK_DODGING]++;
+        else
+            you.skills[SK_ARMOUR]++;
+        break;
+    }
     case JOB_CHAOS_KNIGHT:
     {
         you.religion = GOD_XOM;
@@ -314,23 +316,6 @@ void give_items_skills(const newgame_def& ng)
     }
 }
 
-static void _give_starting_food()
-{
-    // No food for those who don't need it.
-    if (you_foodless())
-        return;
-
-    object_class_type base_type = OBJ_FOOD;
-    int sub_type = FOOD_RATION;
-    int quantity = 1;
-
-    // Give another one for hungry species.
-    if (you.get_mutation_level(MUT_FAST_METABOLISM))
-        quantity = 2;
-
-    newgame_make_item(base_type, sub_type, quantity);
-}
-
 static void _setup_tutorial_miscs()
 {
     // Allow for a few specific hint mode messages.
@@ -360,10 +345,12 @@ static void _give_basic_knowledge()
     // Removed item types are handled in _set_removed_types_as_identified.
 }
 
-static void _setup_generic(const newgame_def& ng);
+static void _setup_generic(const newgame_def& ng,
+                          bool normal_dungeon_setup /*for catch2-tests*/);
 
 // Initialise a game based on the choice stored in ng.
-void setup_game(const newgame_def& ng)
+void setup_game(const newgame_def& ng,
+                bool normal_dungeon_setup /*for catch2-tests */)
 {
     crawl_state.type = ng.type; // by default
     if (Options.seed_from_rc && ng.type != GAME_TYPE_CUSTOM_SEED)
@@ -402,7 +389,7 @@ void setup_game(const newgame_def& ng)
         end(-1);
     }
 
-    _setup_generic(ng);
+    _setup_generic(ng, normal_dungeon_setup);
 }
 
 static void _free_up_slot(char letter)
@@ -428,7 +415,8 @@ void initial_dungeon_setup()
     initialise_item_descriptions();
 }
 
-static void _setup_generic(const newgame_def& ng)
+static void _setup_generic(const newgame_def& ng,
+                           bool normal_dungeon_setup /*for catch2-tests*/)
 {
     rng::reset(); // initialize rng from Options.seed
     _init_player();
@@ -461,15 +449,12 @@ static void _setup_generic(const newgame_def& ng)
 
     _unfocus_stats();
 
-    // Needs to be done before handing out food.
     give_basic_mutations(you.species);
 
     // This function depends on stats and mutations being finalised.
     give_items_skills(ng);
 
     roll_demonspawn_mutations();
-
-    _give_starting_food();
 
     if (crawl_state.game_is_sprint())
         _give_bonus_items();
@@ -539,7 +524,8 @@ static void _setup_generic(const newgame_def& ng)
     set_hp(you.hp_max);
     set_mp(you.max_magic_points);
 
-    initial_dungeon_setup();
+    if (normal_dungeon_setup)
+        initial_dungeon_setup();
 
     // Generate the second name of Jiyva
     fix_up_jiyva_name();
